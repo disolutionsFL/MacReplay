@@ -1,3 +1,4 @@
+VERSION = "2.2.1"
 import sys
 import os
 import shutil
