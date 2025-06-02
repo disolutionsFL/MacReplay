@@ -37,7 +37,8 @@ def getUrl(url, proxy=None):
     ]
 
     proxies = {"http": proxy, "https": proxy}
-    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)"}
+    #headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)"}
+    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"}
 
     try:
         for i in urls:
@@ -65,8 +66,8 @@ def getUrl(url, proxy=None):
 
 def getToken(url, mac, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
-    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"}
     try:
         response = s.get(
             url + "?type=stb&action=handshake&JsHttpRequest=1-xml",
@@ -83,9 +84,9 @@ def getToken(url, mac, proxy=None):
 
 def getProfile(url, mac, token, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:
@@ -104,9 +105,9 @@ def getProfile(url, mac, token, proxy=None):
 
 def getExpires(url, mac, token, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:
@@ -125,9 +126,9 @@ def getExpires(url, mac, token, proxy=None):
 
 def getAllChannels(url, mac, token, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:
@@ -147,9 +148,9 @@ def getAllChannels(url, mac, token, proxy=None):
 
 def getGenres(url, mac, token, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:
@@ -182,9 +183,9 @@ def getGenreNames(url, mac, token, proxy=None):
 
 def getLink(url, mac, token, cmd, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:
@@ -207,9 +208,9 @@ def getLink(url, mac, token, cmd, proxy=None):
 
 def getEpg(url, mac, token, period, proxy=None):
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "Europe/London"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
         "Authorization": "Bearer " + token,
     }
     try:

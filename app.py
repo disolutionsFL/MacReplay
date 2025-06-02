@@ -113,6 +113,7 @@ d_ffmpegcmd = [
     "-http_proxy", "<proxy>",   # Proxy setting
     "-timeout", "<timeout>",    # Timeout setting
     "-i", "<url>",              # Input URL
+    "-headers", "'User-Agent: Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3'", # Add User-Agent
     "-map", "0",                # Map all streams
     "-codec", "copy",           # Copy codec (no re-encoding)
     "-f", "mpegts",             # Output format
@@ -662,6 +663,20 @@ def save():
     Thread(target=refresh_xmltv).start()
     flash("Settings saved!", "success")
     return redirect("/settings", code=302)
+
+@app.route("/reloadplaylist", methods=["GET"])
+@authorise
+def reloadplaylist():
+    global cached_playlist, last_playlist_host
+    cached_playlist = None
+    last_playlist_host = None  # The playlist will be updated next time it is downloaded
+    flash("Kicking off playlist reload...", "success")
+
+    threading.Thread(target=refresh_xmltv, daemon=True).start()  # Force update in a separate thread
+    Thread(target=refresh_lineup).start()  # Update the channel lineup for plex.
+
+    return redirect("/portals", code=302)
+
 
 # Route to serve the cached playlist.m3u
 @app.route("/playlist.m3u", methods=["GET"])
