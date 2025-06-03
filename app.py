@@ -113,7 +113,6 @@ d_ffmpegcmd = [
     "-http_proxy", "<proxy>",   # Proxy setting
     "-timeout", "<timeout>",    # Timeout setting
     "-i", "<url>",              # Input URL
-    "-headers", "'User-Agent: Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3'", # Add User-Agent
     "-map", "0",                # Map all streams
     "-codec", "copy",           # Copy codec (no re-encoding)
     "-f", "mpegts",             # Output format
@@ -136,7 +135,7 @@ d_ffmpegcmd = [
 
 defaultSettings = {
     "stream method": "ffmpeg",
-    "ffmpeg command": "-re -http_proxy <proxy> -timeout <timeout> -i <url> -map 0 -codec copy -f mpegts -flush_packets 0 -fflags +nobuffer -flags low_delay -strict experimental -analyzeduration 0 -probesize 32 -copyts -threads 12 pipe:",
+    "ffmpeg command": "-re -http_proxy <proxy> -timeout <timeout> -i <url> <headers> -map 0 -codec copy -f mpegts -flush_packets 0 -fflags +nobuffer -flags low_delay -strict experimental -analyzeduration 0 -probesize 32 -copyts -threads 12 pipe:",
     "ffmpeg timeout": "5",
     "test streams": "true",
     "try all macs": "true",
@@ -162,6 +161,7 @@ defaultPortal = {
     "streams per mac": "1",
     "epg offset": "0",
     "proxy": "",
+    "useragent": "",
     "enabled channels": [],
     "custom channel names": {},
     "custom channel numbers": {},
@@ -292,9 +292,10 @@ def portalsAdd():
     streamsPerMac = request.form["streams per mac"]
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
+    useragent = request.form["useragent"]
 
     if not url.endswith(".php"):
-        url = stb.getUrl(url, proxy)
+        url = stb.getUrl(url, proxy, useragent)
         if not url:
             logger.error("Error getting URL for Portal({})".format(name))
             flash("Error getting URL for Portal({})".format(name), "danger")
@@ -303,10 +304,10 @@ def portalsAdd():
     macsd = {}
 
     for mac in macs:
-        token = stb.getToken(url, mac, proxy)
+        token = stb.getToken(url, mac, proxy, useragent)
         if token:
-            stb.getProfile(url, mac, token, proxy)
-            expiry = stb.getExpires(url, mac, token, proxy)
+            stb.getProfile(url, mac, token, proxy, useragent)
+            expiry = stb.getExpires(url, mac, token, proxy, useragent)
             if expiry:
                 macsd[mac] = expiry
                 logger.info(
@@ -330,6 +331,7 @@ def portalsAdd():
             "streams per mac": streamsPerMac,
             "epg offset": epgOffset,
             "proxy": proxy,
+            "useragent": useragent,
         }
 
         for setting, default in defaultPortal.items():
@@ -364,10 +366,11 @@ def portalUpdate():
     streamsPerMac = request.form["streams per mac"]
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
+    useragent = request.form["useragent"]
     retest = request.form.get("retest", None)
 
     if not url.endswith(".php"):
-        url = stb.getUrl(url, proxy)
+        url = stb.getUrl(url, proxy, useragent)
         if not url:
             logger.error("Error getting URL for Portal({})".format(name))
             flash("Error getting URL for Portal({})".format(name), "danger")
@@ -380,10 +383,10 @@ def portalUpdate():
 
     for mac in newmacs:
         if retest or mac not in oldmacs.keys():
-            token = stb.getToken(url, mac, proxy)
+            token = stb.getToken(url, mac, proxy, useragent)
             if token:
-                stb.getProfile(url, mac, token, proxy)
-                expiry = stb.getExpires(url, mac, token, proxy)
+                stb.getProfile(url, mac, token, proxy, useragent)
+                expiry = stb.getExpires(url, mac, token, proxy, useragent)
                 if expiry:
                     macsout[mac] = expiry
                     logger.info(
@@ -412,6 +415,7 @@ def portalUpdate():
         portals[id]["streams per mac"] = streamsPerMac
         portals[id]["epg offset"] = epgOffset
         portals[id]["proxy"] = proxy
+        portals[id]["useragent"] = useragent
         savePortals(portals)
         logger.info("Portal({}) updated!".format(name))
         flash("Portal({}) updated!".format(name), "success")
@@ -458,6 +462,7 @@ def editor_data():
             url = portals[portal]["url"]
             macs = list(portals[portal]["macs"].keys())
             proxy = portals[portal]["proxy"]
+            useragent = portals[portal]["useragent"]
             enabledChannels = portals[portal].get("enabled channels", [])
             customChannelNames = portals[portal].get("custom channel names", {})
             customGenres = portals[portal].get("custom genres", {})
@@ -468,10 +473,10 @@ def editor_data():
             for mac in macs:
                 logger.info(f"Using mac: {mac}")
                 try:
-                    token = stb.getToken(url, mac, proxy)
-                    stb.getProfile(url, mac, token, proxy)
-                    allChannels = stb.getAllChannels(url, mac, token, proxy)
-                    genres = stb.getGenreNames(url, mac, token, proxy)
+                    token = stb.getToken(url, mac, proxy, useragent)
+                    stb.getProfile(url, mac, token, proxy, useragent)
+                    allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
+                    genres = stb.getGenreNames(url, mac, token, proxy, useragent)
                     break
                 except:
                     allChannels = None
@@ -721,6 +726,7 @@ def generate_playlist():
                 url = portals[portal]["url"]
                 macs = list(portals[portal]["macs"].keys())
                 proxy = portals[portal]["proxy"]
+                useragent = portals[portal]["useragent"]
                 customChannelNames = portals[portal].get("custom channel names", {})
                 customGenres = portals[portal].get("custom genres", {})
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
@@ -728,10 +734,10 @@ def generate_playlist():
 
                 for mac in macs:
                     try:
-                        token = stb.getToken(url, mac, proxy)
-                        stb.getProfile(url, mac, token, proxy)
-                        allChannels = stb.getAllChannels(url, mac, token, proxy)
-                        genres = stb.getGenreNames(url, mac, token, proxy)
+                        token = stb.getToken(url, mac, proxy, useragent)
+                        stb.getProfile(url, mac, token, proxy, useragent)
+                        allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
+                        genres = stb.getGenreNames(url, mac, token, proxy, useragent)
                         break
                     except:
                         allChannels = None
@@ -854,13 +860,14 @@ def refresh_xmltv():
                 customChannelNames = portals[portal].get("custom channel names", {})
                 customEpgIds = portals[portal].get("custom epg ids", {})
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
+                useragent = portals[portal]["useragent"]
 
                 for mac in macs:
                     try:
-                        token = stb.getToken(url, mac, proxy)
-                        stb.getProfile(url, mac, token, proxy)
-                        allChannels = stb.getAllChannels(url, mac, token, proxy)
-                        epg = stb.getEpg(url, mac, token, 24, proxy)
+                        token = stb.getToken(url, mac, proxy, useragent)
+                        stb.getProfile(url, mac, token, proxy, useragent)
+                        allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
+                        epg = stb.getEpg(url, mac, token, 24, proxy, useragent)
                         break
                     except Exception as e:
                         allChannels = None
@@ -1059,6 +1066,7 @@ def channel(portalId, channelId):
     proxy = portal.get("proxy")
     web = request.args.get("web")
     ip = request.remote_addr
+    useragent = portal.get("useragent")
 
     logger.info(
         "IP({}) requested Portal({}):Channel({})".format(ip, portalId, channelId)
@@ -1075,10 +1083,10 @@ def channel(portalId, channelId):
                 "Trying Portal({}):MAC({}):Channel({})".format(portalId, mac, channelId)
             )
             freeMac = True
-            token = stb.getToken(url, mac, proxy)
+            token = stb.getToken(url, mac, proxy, useragent)
             if token:
-                stb.getProfile(url, mac, token, proxy)
-                channels = stb.getAllChannels(url, mac, token, proxy)
+                stb.getProfile(url, mac, token, proxy, useragent)
+                channels = stb.getAllChannels(url, mac, token, proxy, useragent)
 
         if channels:
             for c in channels:
@@ -1091,11 +1099,18 @@ def channel(portalId, channelId):
 
         if cmd:
             if "http://localhost/" in cmd:
-                link = stb.getLink(url, mac, token, cmd, proxy)
+                link = stb.getLink(url, mac, token, cmd, proxy, useragent)
             else:
                 link = cmd.split(" ")[1]
 
         if link:
+
+            logger.info(
+                "Source stream found for Portal({}):Channel({}):Url({})".format(
+                    portalId, channelId, link
+                )
+            )
+
             if getSettings().get("test streams", "true") == "false" or testStream():
                 if web:
                     ffmpegcmd = [
@@ -1116,6 +1131,13 @@ def channel(portalId, channelId):
                     if proxy:
                         ffmpegcmd.insert(1, "-http_proxy")
                         ffmpegcmd.insert(2, proxy)
+
+                        logger.info(
+                            "FFMPEG cmd w/proxy issued({})".format(
+                                ffmpegcmd
+                            )
+                        )
+
                     return Response(streamData(), mimetype="application/octet-stream")
 
                 else:
@@ -1126,12 +1148,39 @@ def channel(portalId, channelId):
                             "<timeout>",
                             str(int(getSettings()["ffmpeg timeout"]) * int(1000000)),
                         )
+
+
                         if proxy:
                             ffmpegcmd = ffmpegcmd.replace("<proxy>", proxy)
                         else:
                             ffmpegcmd = ffmpegcmd.replace("-http_proxy <proxy>", "")
                         " ".join(ffmpegcmd.split())  # cleans up multiple whitespaces
+
+                        if useragent:
+                            useragent = useragent.replace(" ", "%20")
+                            ffmpegcmd = ffmpegcmd.replace("<headers>", "-headers 'User-Agent:%20{}'".format(useragent))
+                        else:
+                            ffmpegcmd = ffmpegcmd.replace("<headers>", "")
+
+
                         ffmpegcmd = ffmpegcmd.split()
+
+                        #restore spaces marked as %20 by creating a temp list for modifications
+                        ffmpegcmdtemp = []
+                        for cmd in ffmpegcmd:
+                            cmd = cmd.replace("%20", " ")
+                            ffmpegcmdtemp.append(cmd)
+
+                        #copy temp list back to ffmpegcmd
+                        if ffmpegcmdtemp:
+                            ffmpegcmd = ffmpegcmdtemp
+
+                        logger.info(
+                            "FFMPEG cmd issued({})".format(
+                                ffmpegcmd
+                            )
+                        )
+
                         return Response(
                             streamData(), mimetype="application/octet-stream"
                         )
@@ -1163,6 +1212,7 @@ def channel(portalId, channelId):
                     url = portals[portal].get("url")
                     macs = list(portals[portal]["macs"].keys())
                     proxy = portals[portal].get("proxy")
+                    useragent = portals[portal].get("useragent")
                     for mac in macs:
                         channels = None
                         cmd = None
@@ -1171,10 +1221,10 @@ def channel(portalId, channelId):
                             for k, v in fallbackChannels.items():
                                 if v == channelName:
                                     try:
-                                        token = stb.getToken(url, mac, proxy)
-                                        stb.getProfile(url, mac, token, proxy)
+                                        token = stb.getToken(url, mac, proxy, useragent)
+                                        stb.getProfile(url, mac, token, proxy, useragent)
                                         channels = stb.getAllChannels(
-                                            url, mac, token, proxy
+                                            url, mac, token, proxy, useragent
                                         )
                                     except:
                                         logger.info(
@@ -1191,11 +1241,16 @@ def channel(portalId, channelId):
                                         if cmd:
                                             if "http://localhost/" in cmd:
                                                 link = stb.getLink(
-                                                    url, mac, token, cmd, proxy
+                                                    url, mac, token, cmd, proxy, useragent
                                                 )
                                             else:
                                                 link = cmd.split(" ")[1]
                                             if link:
+                                                logger.info(
+                                                    "Source stream found for Portal({}):Channel({}):Url({})".format(
+                                                        portalId, channelId, link
+                                                    )
+                                                )
                                                 if testStream():
                                                     logger.info(
                                                         "Fallback found for Portal({}):Channel({})".format(
@@ -1227,6 +1282,8 @@ def channel(portalId, channelId):
                                                                 * int(1000000)
                                                             ),
                                                         )
+
+
                                                         if proxy:
                                                             ffmpegcmd = (
                                                                 ffmpegcmd.replace(
@@ -1241,7 +1298,38 @@ def channel(portalId, channelId):
                                                         " ".join(
                                                             ffmpegcmd.split()
                                                         )  # cleans up multiple whitespaces
+
+                                                        #can't split headers to use a useragent so add after
+                                                        if useragent:
+                                                            ffmpegcmd = (
+                                                                ffmpegcmd.replace(
+                                                                    "<headers>", "-headers 'User-Agent:%20{}'".format(useragent)
+                                                                )
+                                                            )
+                                                        else:
+                                                            ffmpegcmd = ffmpegcmd.replace(
+                                                                "<headers>",
+                                                                "",
+                                                            )
+
                                                         ffmpegcmd = ffmpegcmd.split()
+
+                                                        # restore spaces marked as %20 by creating a temp list for modifications
+                                                        ffmpegcmdtemp = []
+                                                        for cmd in ffmpegcmd:
+                                                            cmd = cmd.replace("%20", " ")
+                                                            ffmpegcmdtemp.append(cmd)
+
+                                                        # copy temp list back to ffmpegcmd
+                                                        if ffmpegcmdtemp:
+                                                            ffmpegcmd = ffmpegcmdtemp
+
+                                                        logger.info(
+                                                            "FFMPEG cmd issued({})".format(
+                                                                ffmpegcmd
+                                                            )
+                                                        )
+
                                                         return Response(
                                                             streamData(),
                                                             mimetype="application/octet-stream",
@@ -1369,14 +1457,15 @@ def refresh_lineup():
                 url = portals[portal]["url"]
                 macs = list(portals[portal]["macs"].keys())
                 proxy = portals[portal]["proxy"]
+                useragent = portals[portal]["useragent"]
                 customChannelNames = portals[portal].get("custom channel names", {})
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
 
                 for mac in macs:
                     try:
-                        token = stb.getToken(url, mac, proxy)
-                        stb.getProfile(url, mac, token, proxy)
-                        allChannels = stb.getAllChannels(url, mac, token, proxy)
+                        token = stb.getToken(url, mac, proxy, useragent)
+                        stb.getProfile(url, mac, token, proxy, useragent)
+                        allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
                         break
                     except:
                         allChannels = None

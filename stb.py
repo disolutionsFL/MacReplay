@@ -6,9 +6,12 @@ import re
 s = requests.Session()
 retries = Retry(total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
 s.mount("http://", HTTPAdapter(max_retries=retries))
+defaultUserAgent = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
 
+def getUrl(url, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
 
-def getUrl(url, proxy=None):
     def parseResponse(url, data):
         java = data.text.replace(" ", "").replace("'", "").replace("+", "")
         pattern = re.search(r"varpattern.*\/(\(http.*)\/;", java).group(1)
@@ -38,7 +41,7 @@ def getUrl(url, proxy=None):
 
     proxies = {"http": proxy, "https": proxy}
     #headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)"}
-    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"}
+    headers = {"User-Agent": useragent}
 
     try:
         for i in urls:
@@ -64,10 +67,13 @@ def getUrl(url, proxy=None):
         pass
 
 
-def getToken(url, mac, proxy=None):
+def getToken(url, mac, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
-    headers = {"User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"}
+    headers = {"User-Agent": useragent}
     try:
         response = s.get(
             url + "?type=stb&action=handshake&JsHttpRequest=1-xml",
@@ -82,11 +88,14 @@ def getToken(url, mac, proxy=None):
         pass
 
 
-def getProfile(url, mac, token, proxy=None):
+def getProfile(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:
@@ -103,11 +112,14 @@ def getProfile(url, mac, token, proxy=None):
         pass
 
 
-def getExpires(url, mac, token, proxy=None):
+def getExpires(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:
@@ -124,11 +136,14 @@ def getExpires(url, mac, token, proxy=None):
         pass
 
 
-def getAllChannels(url, mac, token, proxy=None):
+def getAllChannels(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:
@@ -146,11 +161,14 @@ def getAllChannels(url, mac, token, proxy=None):
         pass
 
 
-def getGenres(url, mac, token, proxy=None):
+def getGenres(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:
@@ -167,9 +185,12 @@ def getGenres(url, mac, token, proxy=None):
         pass
 
 
-def getGenreNames(url, mac, token, proxy=None):
+def getGenreNames(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     try:
-        genreData = getGenres(url, mac, token, proxy)
+        genreData = getGenres(url, mac, token, proxy, useragent)
         genres = {}
         for i in genreData:
             gid = i["id"]
@@ -181,11 +202,16 @@ def getGenreNames(url, mac, token, proxy=None):
         pass
 
 
-def getLink(url, mac, token, cmd, proxy=None):
+def getLink(url, mac, token, cmd, proxy=None, useragent=None):
+
+    if useragent is None:
+        useragent = defaultUserAgent
+
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:
@@ -206,11 +232,14 @@ def getLink(url, mac, token, cmd, proxy=None):
         pass
 
 
-def getEpg(url, mac, token, period, proxy=None):
+def getEpg(url, mac, token, period, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
     proxies = {"http": proxy, "https": proxy}
     cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
     headers = {
-        "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+        "User-Agent": useragent,
         "Authorization": "Bearer " + token,
     }
     try:

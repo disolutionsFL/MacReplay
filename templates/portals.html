@@ -22,6 +22,7 @@
                 <div class="card-header btn text-start stretched-link" data-id="{{ portal }}"
                     data-enabled="{{ portals[portal].enabled }}" data-name="{{ portals[portal].name }}"
                     data-url="{{ portals[portal].url }}" data-proxy="{{ portals[portal].proxy }}"
+                     data-url="{{ portals[portal].url }}" data-useragent="{{ portals[portal].useragent }}"
                     data-macs="{{ portals[portal].macs|join(',') }}"
                     data-streamsPerMac="{{ portals[portal]['streams per mac'] }}" data-bs-toggle="modal"
                     data-epgOffset="{{ portals[portal]['epg offset'] }}" data-bs-toggle="modal"
@@ -80,6 +81,12 @@
 					<h6>Proxy:</h6>
 					<input type="text" name="proxy" class="form-control flex-fill" title="Proxy">
 					<span class="text-muted">MacReplay supports HTTP proxies only.</span>
+
+					<br><br>
+
+                    <h6>User-Agent:</h6>
+					<input type="text" name="useragent" class="form-control flex-fill" title="User-Agent">
+					<span class="text-muted">User-Agent for identification as specific STB models</span>
 
 					<br><br>
 
@@ -154,6 +161,12 @@
 
                     <br><br>
 
+                    <h6>User-Agent:</h6>
+                    <input type="text" name="useragent" id="editUseragent" class="form-control flex-fill" title="User-Agent">
+                    <span class="text-muted">User-Agent for identification as specific STB models</span>
+
+                    <br><br>
+
                     <h6>MACs:</h6>
                     <input type="text" name="macs" id="editMacs" class="form-control flex-fill" title="MACs" required>
                     <span class="text-muted">Enter a comma seperated list of MAC adresses.</span>
@@ -224,6 +237,7 @@
         var name = button.getAttribute('data-name');
         var url = button.getAttribute('data-url');
         var proxy = button.getAttribute('data-proxy');
+        var useragent = button.getAttribute('data-useragent');
         var macs = button.getAttribute('data-macs');
         var streamsPerMac = button.getAttribute('data-streamsPerMac');
         var epgOffset = button.getAttribute('data-EpgOffset');
@@ -236,6 +250,7 @@
         document.getElementById('editName').value = name;
         document.getElementById('editUrl').value = url;
         document.getElementById('editProxy').value = proxy;
+        document.getElementById('editUseragent').value = useragent;
         document.getElementById('editMacs').value = macs;
         document.getElementById('editStreamsPerMac').value = streamsPerMac;
         document.getElementById('editepgOffset').value = epgOffset;
