@@ -651,6 +651,8 @@ def editor_data():
                 logger.info(f"Using mac: {mac}")
                 try:
                     #intialize vars
+                    token = None
+                    portalprofile = None
                     allchannels = None
                     genres = None
                     savetocache = False
@@ -662,8 +664,10 @@ def editor_data():
                     if allchannels is None and genres is None:
                         savetocache = True
 
-                    token = stb.getToken(url, mac, proxy, useragent)
-                    portalprofile = stb.getProfile(url, mac, token, proxy, useragent)
+                    #if we were able to get channels and genres from cache, why call the server at all? No need to.
+                    if allchannels is None or genres is None:
+                        token = stb.getToken(url, mac, proxy, useragent)
+                        portalprofile = stb.getProfile(url, mac, token, proxy, useragent)
 
                     if allchannels is None:
                         allchannels = stb.getAllChannels(url, mac, token, proxy, useragent)
