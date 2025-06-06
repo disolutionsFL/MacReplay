@@ -56,6 +56,7 @@ import flask
 from flask import Flask, jsonify
 import stb
 import json
+import re
 import subprocess
 import uuid
 import xml.etree.cElementTree as ET
@@ -211,6 +212,12 @@ def loadConfig():
 
     return data
 
+def is_file_older_than (file, delta):
+    cutoff = datetime.utcnow() - delta
+    mtime = datetime.utcfromtimestamp(os.path.getmtime(file))
+    if mtime < cutoff:
+        return True
+    return False
 
 def getPortals():
     return config["portals"]
@@ -220,6 +227,158 @@ def savePortals(portals):
     with open(configFile, "w") as f:
         config["portals"] = portals
         json.dump(config, f, indent=4)
+
+def savePortalCache(portal, mac=None, profile=None, channels=None, genres=None):
+    portalprofile = ""
+    portalchannels = ""
+    portalgenres = ""
+    portalname = ""
+
+    portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+    os.makedirs(portalcachepath, exist_ok=True)
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return
+
+    if profile:
+        portalprofile = profile
+        portalprofiledatafilename = portalname.replace(" ", "_")
+        portalprofiledatafilename = portalprofiledatafilename.replace("'", "")
+        portalprofiledatafilename = portalprofiledatafilename.replace("\"", "")
+        portalprofiledatafilename = portalprofiledatafilename.replace(",", "_")
+
+        if mac is None:
+            portalprofilepatafilepath = os.path.join(portalcachepath, "{}_profile.json".format(portalprofiledatafilename))
+        else:
+            mac = mac.replace(" ", "")
+            mac = mac.replace(":", "")
+            portalprofilepatafilepath = os.path.join(portalcachepath, "{}_{}_profile.json".format(portalprofiledatafilename, mac))
+
+        with open(portalprofilepatafilepath, "w") as f:
+            json.dump(portalprofile, f, indent=4)
+
+    if channels:
+        portalchannels = channels
+        portalchannelsdatafilename = portalname.replace(" ", "_")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+
+        if mac is None:
+            portalchannelsdatafilepath = os.path.join(portalcachepath, "{}_channels.json".format(portalchannelsdatafilename))
+        else:
+            mac = mac.replace(" ", "")
+            mac = mac.replace(":", "")
+            portalchannelsdatafilepath = os.path.join(portalcachepath, "{}_{}_channels.json".format(portalchannelsdatafilename, mac))
+
+        with open(portalchannelsdatafilepath, "w") as f:
+            json.dump(portalchannels, f, indent=4)
+
+    if genres:
+        portalgenres = genres
+        portalgenresdatafilename = portalname.replace(" ", "_")
+        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+
+        if mac is None:
+            portalgenresdatafilepath = os.path.join(portalcachepath, "{}_genres.json".format(portalgenresdatafilename))
+        else:
+            mac = mac.replace(" ", "")
+            mac = mac.replace(":", "")
+            portalgenresdatafilepath = os.path.join(portalcachepath, "{}_{}_genres.json".format(portalgenresdatafilename, mac))
+
+        with open(portalgenresdatafilepath, "w") as f:
+            json.dump(portalgenres, f, indent=4)
+
+
+def getPortalChannelsCache(portal, mac):
+    portalname = ""
+    data = None
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return None
+
+    if mac is None:
+        return None
+
+    try:
+        portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+        os.makedirs(portalcachepath, exist_ok=True)
+
+        mac = mac.replace(" ", "")
+        mac = mac.replace(":", "")
+        portalchannelsdatafilename = portalname.replace(" ", "_")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+
+        filename = "{}_{}_channels.json".format(portalchannelsdatafilename, mac)
+        portalchannelsdatafilepath = os.path.join(portalcachepath, filename)
+
+        if not os.path.exists(portalchannelsdatafilepath):
+            return None
+
+        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=12)):
+            os.remove(portalchannelsdatafilepath)
+            logger.warning("Cache file ({}) deleted due to age".format(filename))
+            return None
+
+        with open(portalchannelsdatafilepath, 'r') as file:
+            data = json.load(file)
+    except Exception as ex:
+        logger.warning("Error retrieving Portal channel cache: {}".format(ex))
+        data = None
+
+    return data
+
+
+def getPortalGenresCache(portal, mac):
+    portalname = ""
+    data = None
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return None
+
+    if mac is None:
+        return None
+
+    try:
+        portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+        os.makedirs(portalcachepath, exist_ok=True)
+
+        mac = mac.replace(" ", "")
+        mac = mac.replace(":", "")
+        portalgenresdatafilename = portalname.replace(" ", "_")
+        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+
+        filename = "{}_{}_genres.json".format(portalgenresdatafilename, mac)
+        portalgenresdatafilepath = os.path.join(portalcachepath, filename)
+
+        if not os.path.exists(portalgenresdatafilepath):
+            return None
+
+        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=12)):
+            os.remove(portalgenresdatafilepath)
+            logger.warning("Cache file ({}) deleted due to age".format(filename))
+            return None
+
+        with open(portalgenresdatafilepath) as file:
+            data = json.load(file)
+
+    except Exception as ex:
+        logger.warning("Error retrieving Portal genres cache: {}".format(ex))
+        data = None
+
+    return data
 
 
 def getSettings():
@@ -293,6 +452,7 @@ def portalsAdd():
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
     useragent = request.form["useragent"]
+    profiledata = []
 
     if not url.endswith(".php"):
         url = stb.getUrl(url, proxy, useragent)
@@ -306,7 +466,11 @@ def portalsAdd():
     for mac in macs:
         token = stb.getToken(url, mac, proxy, useragent)
         if token:
-            stb.getProfile(url, mac, token, proxy, useragent)
+            macprofiledata = stb.getProfile(url, mac, token, proxy, useragent)
+            if macprofiledata:
+                macprofiledata["mac"] = mac
+                profiledata.append(macprofiledata)
+
             expiry = stb.getExpires(url, mac, token, proxy, useragent)
             if expiry:
                 macsd[mac] = expiry
@@ -343,6 +507,10 @@ def portalsAdd():
         savePortals(portals)
         logger.info("Portal({}) added!".format(portal["name"]))
 
+        if profiledata:
+            savePortalCache(portal, None, profiledata, None, None)
+            logger.info("Portal({}) profile saved!".format(portal["name"]))
+
     else:
         logger.error(
             "None of the MACs tested OK for Portal({}). Adding not successfull".format(
@@ -368,6 +536,7 @@ def portalUpdate():
     proxy = request.form["proxy"]
     useragent = request.form["useragent"]
     retest = request.form.get("retest", None)
+    profiledata = []
 
     if not url.endswith(".php"):
         url = stb.getUrl(url, proxy, useragent)
@@ -385,7 +554,11 @@ def portalUpdate():
         if retest or mac not in oldmacs.keys():
             token = stb.getToken(url, mac, proxy, useragent)
             if token:
-                stb.getProfile(url, mac, token, proxy, useragent)
+                macprofiledata = stb.getProfile(url, mac, token, proxy, useragent)
+                if macprofiledata:
+                    macprofiledata["mac"] = mac
+                    profiledata.append(macprofiledata)
+
                 expiry = stb.getExpires(url, mac, token, proxy, useragent)
                 if expiry:
                     macsout[mac] = expiry
@@ -419,6 +592,10 @@ def portalUpdate():
         savePortals(portals)
         logger.info("Portal({}) updated!".format(name))
         flash("Portal({}) updated!".format(name), "success")
+
+        if profiledata:
+            savePortalCache(portals[id], None, profiledata, None, None)
+            logger.info("Portal({}) profile saved!".format(name))
 
     else:
         logger.error(
@@ -473,17 +650,48 @@ def editor_data():
             for mac in macs:
                 logger.info(f"Using mac: {mac}")
                 try:
+                    #intialize vars
+                    allchannels = None
+                    genres = None
+                    savetocache = False
+
+                    #get cache data first to save round trips to server, and to prevent from getting banned
+                    allchannels = getPortalChannelsCache(portals[portal], mac)
+                    genres = getPortalGenresCache(portals[portal], mac)
+
+                    if allchannels is None and genres is None:
+                        savetocache = True
+
                     token = stb.getToken(url, mac, proxy, useragent)
-                    stb.getProfile(url, mac, token, proxy, useragent)
-                    allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
-                    genres = stb.getGenreNames(url, mac, token, proxy, useragent)
-                    break
-                except:
-                    allChannels = None
+                    portalprofile = stb.getProfile(url, mac, token, proxy, useragent)
+
+                    if allchannels is None:
+                        allchannels = stb.getAllChannels(url, mac, token, proxy, useragent)
+                        #force genres to re-download since they are needed for new channel list
+                        genres = None
+                        savetocache = True
+                    else:
+                        logger.info("Portal({}) channels retrieved from cache".format(portalName))
+
+                    if genres is None:
+                        genres = stb.getGenreNames(url, mac, token, proxy, useragent)
+                        savetocache = True
+                    else:
+                        logger.info("Portal({}) genres retrieved from cache".format(portalName))
+
+                    if savetocache:
+                        savePortalCache(portals[portal], mac, portalprofile, allchannels, genres)
+                        logger.info("Portal({}) profile, channels and genre data saved!".format(portalName))
+
+                    #break was only allowing first mac's channels to download, whereas other macs could have other channel lists
+                    #break
+                except Exception as ex:
+                    logger.info("Portal({}), error getting channels and/or genres: {}".format(portalName, ex))
+                    allchannels = None
                     genres = None
 
-            if allChannels and genres:
-                for channel in allChannels:
+            if allchannels and genres:
+                for channel in allchannels:
                     channelId = str(channel["id"])
                     channelName = str(channel["name"])
                     channelNumber = str(channel["number"])
@@ -530,6 +738,8 @@ def editor_data():
                             + "?web=true",
                         }
                     )
+
+
             else:
                 logger.error(
                     "Error getting channel data for {}, skipping".format(portalName)
