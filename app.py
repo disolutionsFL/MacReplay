@@ -9,6 +9,7 @@ import xml.dom.minidom as minidom
 import threading
 from threading import Thread
 import logging
+import copy
 logger = logging.getLogger("MacReplay")
 logger.setLevel(logging.INFO)
 logFormat = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
@@ -294,6 +295,82 @@ def savePortalCache(portal, mac=None, profile=None, channels=None, genres=None):
             json.dump(portalgenres, f, indent=4)
 
 
+def saveCombinedPortalChannelsCache(portal, channels=None, genres=None):
+    portalchannels = ""
+    portalgenres = ""
+    portalname = ""
+
+    portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+    os.makedirs(portalcachepath, exist_ok=True)
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return
+
+    if channels:
+        portalchannels = channels
+        portalchannelsdatafilename = portalname.replace(" ", "_")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+
+        portalchannelsdatafilepath = os.path.join(portalcachepath, "{}_combined_portalchannels.json".format(portalchannelsdatafilename))
+
+        with open(portalchannelsdatafilepath, "w") as f:
+            json.dump(portalchannels, f, indent=4)
+
+    if genres:
+        portalgenres = genres
+        portalgenresdatafilename = portalname.replace(" ", "_")
+        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+
+        portalgenresdatafilepath = os.path.join(portalcachepath, "{}_combined_portalgenres.json".format(portalgenresdatafilename))
+
+        with open(portalgenresdatafilepath, "w") as f:
+            json.dump(portalgenres, f, indent=4)
+
+
+def getCombinedPortalChannelsCache(portal):
+    portalname = ""
+    data = []
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return []
+
+    try:
+        portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+        os.makedirs(portalcachepath, exist_ok=True)
+
+        portalchannelsdatafilename = portalname.replace(" ", "_")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
+        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+
+        filename = "{}_combined_portalchannels.json".format(portalchannelsdatafilename)
+        portalchannelsdatafilepath = os.path.join(portalcachepath, filename)
+
+        if not os.path.exists(portalchannelsdatafilepath):
+            return []
+
+        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=12)):
+            os.remove(portalchannelsdatafilepath)
+            logger.warning("Cache file ({}) deleted due to age".format(filename))
+            return []
+
+        with open(portalchannelsdatafilepath, 'r') as file:
+            data = json.load(file)
+    except Exception as ex:
+        logger.warning("Error retrieving Combined Portal channel cache: {}".format(ex))
+        data = []
+
+    return data
+
+
 def getPortalChannelsCache(portal, mac):
     portalname = ""
     data = None
@@ -379,6 +456,45 @@ def getPortalGenresCache(portal, mac):
         data = None
 
     return data
+
+def getCombinedPortalGenresCache(portal):
+    portalname = ""
+    data = []
+
+    if portal:
+        portalname = portal["name"]
+    else:
+        return []
+
+    try:
+        portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+        os.makedirs(portalcachepath, exist_ok=True)
+
+        portalgenresdatafilename = portalname.replace(" ", "_")
+        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
+        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+
+        filename = "{}_combined_portalgenres.json".format(portalgenresdatafilename)
+        portalgenresdatafilepath = os.path.join(portalcachepath, filename)
+
+        if not os.path.exists(portalgenresdatafilepath):
+            return []
+
+        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=12)):
+            os.remove(portalgenresdatafilepath)
+            logger.warning("Cache file ({}) deleted due to age".format(filename))
+            return []
+
+        with open(portalgenresdatafilepath) as file:
+            data = json.load(file)
+
+    except Exception as ex:
+        logger.warning("Error retrieving Combined Portal genres cache: {}".format(ex))
+        data = []
+
+    return data
+
 
 
 def getSettings():
@@ -632,7 +748,10 @@ def editor():
 def editor_data():
     channels = []
     portals = getPortals()
+
     for portal in portals:
+        portalchannels = []
+        portalgenres = []
         logger.info(f"getting Data from {portal}")
         if portals[portal]["enabled"] == "true":
             portalName = portals[portal]["name"]
@@ -647,52 +766,90 @@ def editor_data():
             customEpgIds = portals[portal].get("custom epg ids", {})
             fallbackChannels = portals[portal].get("fallback channels", {})
 
-            for mac in macs:
-                logger.info(f"Using mac: {mac}")
-                try:
-                    #intialize vars
-                    token = None
-                    portalprofile = None
-                    allchannels = None
-                    genres = None
-                    savetocache = False
+            portalchannels = getCombinedPortalChannelsCache(portals[portal])
+            portalgenres = getCombinedPortalGenresCache(portals[portal])
 
-                    #get cache data first to save round trips to server, and to prevent from getting banned
-                    allchannels = getPortalChannelsCache(portals[portal], mac)
-                    genres = getPortalGenresCache(portals[portal], mac)
-
-                    if allchannels is None and genres is None:
-                        savetocache = True
-
-                    #if we were able to get channels and genres from cache, why call the server at all? No need to.
-                    if allchannels is None or genres is None:
-                        token = stb.getToken(url, mac, proxy, useragent)
-                        portalprofile = stb.getProfile(url, mac, token, proxy, useragent)
-
-                    if allchannels is None:
-                        allchannels = stb.getAllChannels(url, mac, token, proxy, useragent)
-                        #force genres to re-download since they are needed for new channel list
+            if (portalchannels is None or len(portalchannels) == 0) or (portalgenres is None or len(portalgenres) == 0):
+                for mac in macs:
+                    logger.info(f"Using mac: {mac}")
+                    try:
+                        #intialize vars
+                        token = None
+                        portalprofile = None
+                        allchannels = None
                         genres = None
-                        savetocache = True
-                    else:
-                        logger.info("Portal({}) channels retrieved from cache".format(portalName))
+                        savetocache = False
 
-                    if genres is None:
-                        genres = stb.getGenreNames(url, mac, token, proxy, useragent)
-                        savetocache = True
-                    else:
-                        logger.info("Portal({}) genres retrieved from cache".format(portalName))
+                        #get cache data first to save round trips to server, and to prevent from getting banned
+                        allchannels = getPortalChannelsCache(portals[portal], mac)
+                        genres = getPortalGenresCache(portals[portal], mac)
 
-                    if savetocache:
-                        savePortalCache(portals[portal], mac, portalprofile, allchannels, genres)
-                        logger.info("Portal({}) profile, channels and genre data saved!".format(portalName))
+                        if allchannels is None and genres is None:
+                            savetocache = True
 
-                    #break was only allowing first mac's channels to download, whereas other macs could have other channel lists
-                    #break
-                except Exception as ex:
-                    logger.info("Portal({}), error getting channels and/or genres: {}".format(portalName, ex))
-                    allchannels = None
-                    genres = None
+                        #if we were able to get channels and genres from cache, why call the server at all? No need to.
+                        if allchannels is None or genres is None:
+                            token = stb.getToken(url, mac, proxy, useragent)
+                            portalprofile = stb.getProfile(url, mac, token, proxy, useragent)
+
+                        if allchannels is None:
+                            allchannels = stb.getAllChannels(url, mac, token, proxy, useragent)
+                            #force genres to re-download since they are needed for new channel list
+                            genres = None
+                            savetocache = True
+                        else:
+                            logger.info("Portal({}) channels retrieved from cache".format(portalName))
+
+                        if genres is None:
+                            genres = stb.getGenreNames(url, mac, token, proxy, useragent)
+                            savetocache = True
+                        else:
+                            logger.info("Portal({}) genres retrieved from cache".format(portalName))
+
+                        if savetocache:
+                            savePortalCache(portals[portal], mac, portalprofile, allchannels, genres)
+                            logger.info("Portal({}) profile, channels and genre data saved!".format(portalName))
+
+                        #if we have multiple macs for a portal, we need to combine channels into a distinct list so we don't have to deal with duplicates
+                        if allchannels is not None:
+                            logger.info("Portal({}), {} channels found for mac {}".format(portalName, len(allchannels), mac))
+                            for c in allchannels:
+                                exists = next((x for x in portalchannels if x['id'] == c['id']), None)
+                                if exists is None:
+                                    portalchannels.append(c)
+
+                        #same for genres
+                        if genres is not None:
+                            logger.info("Portal({}), {} genres found for mac {}".format(portalName, len(genres), mac))
+                            if portalgenres is not None and len(portalgenres) == 0:
+                                portalgenres = copy.deepcopy(genres)
+                            else:
+                                #merge genres for this mac with those already found for this portal
+                                portalgenres.update(genres)
+
+                        #break was only allowing first mac's channels to download, whereas other macs could have other channel lists
+                        #break
+
+                    except Exception as ex:
+                        logger.info("Portal({}), error getting channels and/or genres: {}".format(portalName, ex))
+                        allchannels = None
+                        genres = None
+
+            else:
+                #we retrieved from cache, set all channels so we can parse the combine list
+                allchannels = portalchannels
+
+            if allchannels and portalchannels and len(portalchannels) >= len(allchannels):
+                logger.info(
+                    "Portal({}), {} total channels found across all macs".format(portalName, len(portalchannels)))
+                allchannels = portalchannels
+                saveCombinedPortalChannelsCache(portals[portal], portalchannels, None)
+
+            if portalgenres and len(portalgenres) >= 0:
+                logger.info(
+                    "Portal({}), {} total genres found across all macs".format(portalName, len(portalgenres)))
+                genres = copy.deepcopy(portalgenres)
+                saveCombinedPortalChannelsCache(portals[portal], None, portalgenres)
 
             if allchannels and genres:
                 for channel in allchannels:
@@ -719,6 +876,7 @@ def editor_data():
                     fallbackChannel = fallbackChannels.get(channelId)
                     if fallbackChannel == None:
                         fallbackChannel = ""
+
                     channels.append(
                         {
                             "portal": portal,
@@ -742,6 +900,8 @@ def editor_data():
                             + "?web=true",
                         }
                     )
+
+
 
 
             else:
