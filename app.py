@@ -139,6 +139,8 @@ defaultSettings = {
     "stream method": "ffmpeg",
     "ffmpeg command": "-re -http_proxy <proxy> -timeout <timeout> -i <url> <headers> -map 0 -codec copy -f mpegts -flush_packets 0 -fflags +nobuffer -flags low_delay -strict experimental -analyzeduration 0 -probesize 32 -copyts -threads 12 pipe:",
     "ffmpeg timeout": "5",
+    "cache expiryhrs": "24",
+    "cache disabledelete": "false",
     "test streams": "true",
     "try all macs": "true",
     "use channel genres": "true",
@@ -336,6 +338,8 @@ def saveCombinedPortalChannelsCache(portal, channels=None, genres=None):
 def getCombinedPortalChannelsCache(portal):
     portalname = ""
     data = []
+    cachetimeouthrs = int(getSettings()["cache expiryhrs"])
+    purgeCache = getSettings().get("cache disabledelete", "false") == "false"
 
     if portal:
         portalname = portal["name"]
@@ -357,10 +361,11 @@ def getCombinedPortalChannelsCache(portal):
         if not os.path.exists(portalchannelsdatafilepath):
             return []
 
-        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=12)):
-            os.remove(portalchannelsdatafilepath)
-            logger.warning("Cache file ({}) deleted due to age".format(filename))
-            return []
+        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=cachetimeouthrs)):
+            if purgeCache:
+                os.remove(portalchannelsdatafilepath)
+                logger.warning("Cache file ({}) deleted due to age".format(filename))
+                return []
 
         with open(portalchannelsdatafilepath, 'r') as file:
             data = json.load(file)
@@ -374,6 +379,8 @@ def getCombinedPortalChannelsCache(portal):
 def getPortalChannelsCache(portal, mac):
     portalname = ""
     data = None
+    cachetimeouthrs = int(getSettings()["cache expiryhrs"])
+    purgeCache = getSettings().get("cache disabledelete", "false") == "false"
 
     if portal:
         portalname = portal["name"]
@@ -400,10 +407,11 @@ def getPortalChannelsCache(portal, mac):
         if not os.path.exists(portalchannelsdatafilepath):
             return None
 
-        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=12)):
-            os.remove(portalchannelsdatafilepath)
-            logger.warning("Cache file ({}) deleted due to age".format(filename))
-            return None
+        if is_file_older_than(portalchannelsdatafilepath, timedelta(hours=cachetimeouthrs)):
+            if purgeCache:
+                os.remove(portalchannelsdatafilepath)
+                logger.warning("Cache file ({}) deleted due to age".format(filename))
+                return None
 
         with open(portalchannelsdatafilepath, 'r') as file:
             data = json.load(file)
@@ -417,6 +425,9 @@ def getPortalChannelsCache(portal, mac):
 def getPortalGenresCache(portal, mac):
     portalname = ""
     data = None
+    cachetimeouthrs = int(getSettings()["cache expiryhrs"])
+    purgeCache = getSettings().get("cache disabledelete", "false") == "false"
+
 
     if portal:
         portalname = portal["name"]
@@ -443,10 +454,11 @@ def getPortalGenresCache(portal, mac):
         if not os.path.exists(portalgenresdatafilepath):
             return None
 
-        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=12)):
-            os.remove(portalgenresdatafilepath)
-            logger.warning("Cache file ({}) deleted due to age".format(filename))
-            return None
+        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=cachetimeouthrs)):
+            if purgeCache:
+                os.remove(portalgenresdatafilepath)
+                logger.warning("Cache file ({}) deleted due to age".format(filename))
+                return None
 
         with open(portalgenresdatafilepath) as file:
             data = json.load(file)
@@ -460,6 +472,8 @@ def getPortalGenresCache(portal, mac):
 def getCombinedPortalGenresCache(portal):
     portalname = ""
     data = []
+    cachetimeouthrs = int(getSettings()["cache expiryhrs"])
+    purgeCache = getSettings().get("cache disabledelete", "false") == "false"
 
     if portal:
         portalname = portal["name"]
@@ -481,10 +495,11 @@ def getCombinedPortalGenresCache(portal):
         if not os.path.exists(portalgenresdatafilepath):
             return []
 
-        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=12)):
-            os.remove(portalgenresdatafilepath)
-            logger.warning("Cache file ({}) deleted due to age".format(filename))
-            return []
+        if is_file_older_than(portalgenresdatafilepath, timedelta(hours=cachetimeouthrs)):
+            if purgeCache:
+                os.remove(portalgenresdatafilepath)
+                logger.warning("Cache file ({}) deleted due to age".format(filename))
+                return []
 
         with open(portalgenresdatafilepath) as file:
             data = json.load(file)
@@ -772,6 +787,7 @@ def editor_data():
             if (portalchannels is None or len(portalchannels) == 0) or (portalgenres is None or len(portalgenres) == 0):
                 for mac in macs:
                     logger.info(f"Using mac: {mac}")
+
                     try:
                         #intialize vars
                         token = None

@@ -12,6 +12,35 @@
 
     <input form="save" type="text" name="hdhr id" id="hdhr id" class="form-control" value="{{ settings['hdhr id'] }}" hidden>
 
+    <h4>Caching</h4>
+    <hr>
+    <div class="p-sm-3">
+
+        <h6>Cache Expiration:</h6>
+        <div class="col-md-2">
+            <div class="input-group flex-nowrap">
+                <input form="save" type="number" name="cache expiryhrs" id="cache expiryhrs" class="form-control"
+                    value="{{ settings['cache expiryhrs'] }}" required>
+                <button class="btn btn-danger btn-block" title="Reset"><i class="fa fa-undo"
+                        onclick="resetDefault(this)" data-input="cache expiryhrs" data-default="{{ defaultSettings['cache expiryhrs'] }}"></i></button>
+            </div>
+        </div>
+        <span class="text-muted">Hours before cache is considered expired/old</span>
+
+        <br><br>
+
+        <h6>Disable Cache Removal (debugging/offline mode):</h6>
+        <div class="col-md-2">
+            <div class="form-check form-switch">
+                <input form="save" type="checkbox" class="checkbox form-check-input" name="cache disabledelete" value="true" {{ "checked" if settings['cache disabledelete']=='true' }}>
+            </div>
+        </div>
+        <span class="text-muted">Use for debugging and offline playlist editing</span>
+
+    </div>
+
+    <br>
+
     <h4>Streaming</h4>
     <hr>
     <div class="p-sm-3">

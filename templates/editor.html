@@ -23,6 +23,8 @@
         </tbody>
     </table>
 
+  </div>
+
     <form action="/editor/save" method="post" id="save edits" hidden>
         <input type="text" id="enabledEdits" name="enabledEdits" value="">
         <input type="text" id="numberEdits" name="numberEdits" value="">
@@ -172,7 +174,41 @@
     };
 
     $(document).ready(function () {
-        $('#table').DataTable({
+
+        toastr.options = {
+          "closeButton": true,
+          "debug": false,
+          "newestOnTop": true,
+          "progressBar": false,
+          "positionClass": "toast-top-left",
+          "preventDuplicates": false,
+          "onclick": null,
+          "showDuration": "300",
+          "hideDuration": "1000",
+          "timeOut": "5000",
+          "extendedTimeOut": "1000",
+          "showEasing": "swing",
+          "hideEasing": "linear",
+          "showMethod": "fadeIn",
+          "hideMethod": "fadeOut"
+        }
+
+        $('#table thead').hide();
+        $('#table tbody').hide();
+        $('#table .dataTables_info').css('display', 'none');
+        $('#table .dataTables_wrapper .dataTables_paginate').css('display', 'none');
+
+        toastr["info"]("Please wait while playlist and channels are loaded as this might take a while when multiple macs and portals are configured. If caching enabled (default), this process will be much faster after the first load is complete.")
+        //debugger;
+
+        $('#table').on('preDraw.dt', function () {
+            //debugger;
+        }).on('preXhr.dt', function (e, settings, data) {
+            //debugger;
+        }).on('init.dt', function () {
+            //debugger;
+            //console.log('Table initialisation complete: ' + new Date().getTime());
+        }).DataTable({
             dom: "<'row m-1'<'col-auto'B><'col-auto ms-auto'f><'col-auto'l>>" +
                 "<'row'<'col-12'tr>>" +
                 "<'row mb-1 mb-lg-0'<'col-auto text-light'i><'col-auto ms-auto'p>>",
@@ -192,17 +228,52 @@
                 { targets: 6, className: "align-middle", orderDataType: "dom-text", type: 'string' },
                 { targets: 7, className: "align-middle" }
             ],
+            processing: true,
             language: {
                 search: "",
                 searchPlaceholder: 'Filter',
                 lengthMenu: "_MENU_",
+                processing: '<div class="d-flex justify-content-center"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>'
+            },
+            initComplete: function( settings, json ) {
+                $('#table thead').show();
+                $('#table tbody').show();
+                $('#table .dataTables_info').css('display', 'block');
+                $('#table .dataTables_wrapper .dataTables_paginate').css('display', 'block');
+                $(this).show();
+            },
+            drawCallback: function(settings) {
+                //var pagination = $(this).closest('.dataTables_wrapper').find('.dataTables_paginate');
+                //pagination.toggle(this.api().page.info().pages > 1);
+
+                // hide pager and info if the table has NO results
+                const api = new $.fn.dataTable.Api(settings);
+                const pageCount = api.page.info().pages;
+                const itemCount = api.page.info().recordsTotal;
+
+                const wrapper = $('#' + settings.sTableId).closest('.dataTables_wrapper');
+                const pagination = wrapper.find('.dataTables_paginate');
+                const info = wrapper.find('.dataTables_info');
+                const filter = wrapper.find('.dataTables_filter');
+                const pagelength = wrapper.find('.dataTables_length');
+                const savebtn = wrapper.find('.savebtn');
+                const resetbtn = wrapper.find('.resetbtn');
+
+                pagination.toggle(pageCount > 0);
+                info.toggle(pageCount > 0);
+                filter.toggle(itemCount > 0);
+                pagelength.toggle(itemCount > 0);
+                savebtn.toggle(itemCount > 0);
+                resetbtn.toggle(itemCount > 0);
+                //debugger;
+
             },
             buttons: {
                 buttons: [
                     {
                         text: '<i class="fa fa-save"></i> Save',
                         titleAttr: 'Save',
-                        className: "btn btn-success",
+                        className: "btn btn-success savebtn",
                         action: function () {
                             save();
                         }
@@ -210,7 +281,7 @@
                     {
                         text: '<i class="fa fa-undo"></i> Reset',
                         titleAttr: 'Reset',
-                        className: "btn btn-danger",
+                        className: "btn btn-danger resetbtn",
                         action: function () {
                             if (confirm("Confirm Reset\nThis will clear all edits!") == true) {
                                 document.getElementById('reset').submit();
@@ -352,6 +423,7 @@
             ],
         });
     });
+
 
 </script>
 {% endblock %}
