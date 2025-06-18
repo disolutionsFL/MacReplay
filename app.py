@@ -1195,7 +1195,16 @@ def generate_playlist():
     # Update the cache
     cached_playlist = playlist
     logger.info("Playlist generated and cached.")
-    
+
+def datetime_to_float(d):
+    epoch = datetime.fromtimestamp(0, timezone.utc)
+    total_seconds =  (d - epoch).total_seconds()
+    # total_seconds will be in decimals (millisecond precision)
+    return total_seconds
+
+def float_to_datetime(fl):
+    return datetime.fromtimestamp(fl, timezone.utc)
+
 def refresh_xmltv():
     settings = getSettings()
     logger.info("Refreshing XMLTV...")
@@ -1207,7 +1216,7 @@ def refresh_xmltv():
     cache_file = os.path.join(cache_dir, "MacReplayEPG.xml")
 
     # Define date cutoff for programme filtering
-    day_before_yesterday = datetime.utcnow() - timedelta(days=2)
+    day_before_yesterday = datetime.now(timezone.utc) - timedelta(days=2)
     day_before_yesterday_str = day_before_yesterday.strftime("%Y%m%d%H%M%S") + " +0000"
 
     # Load existing cache if it exists
@@ -1222,7 +1231,8 @@ def refresh_xmltv():
                     try:
                         # Parse the stop time and compare with the cutoff
                         stop_time = datetime.strptime(stop_attr.split(" ")[0], "%Y%m%d%H%M%S")
-                        if stop_time >= day_before_yesterday:  # Keep only recent programmes
+                        #if stop_time.timestamp() >= day_before_yesterday.timestamp(): #after fixing day_before_yesterday to be aware, this threw this error "can't compare offset-naive and offset-aware datetimes"
+                        if stop_time.timestamp() >= day_before_yesterday.timestamp():  # Keep only recent programmes
                             cached_programmes.append(ET.tostring(programme, encoding="unicode"))
                     except ValueError as e:
                         logger.warning(f"Invalid stop time format in cached programme: {stop_attr}. Skipping.")
@@ -1280,8 +1290,8 @@ def refresh_xmltv():
                                 ET.SubElement(channelEle, "icon", src=channel.get("logo"))
 
                                 if channelId not in epg or not epg.get(channelId):
-                                    logger.warning(f"No EPG data found for channel {channelName} (ID: {channelId}), Creating a Dummy EPG item.")
-                                    start_time = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+                                    logger.warning(f"No EPG data found for channel {channelName.encode("utf-8")} (ID: {channelId.encode("utf-8")}), Creating a Dummy EPG item.")
+                                    start_time = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
                                     stop_time = start_time + timedelta(hours=24)
                                     start = start_time.strftime("%Y%m%d%H%M%S") + " +0000"
                                     stop = stop_time.strftime("%Y%m%d%H%M%S") + " +0000"
@@ -1297,8 +1307,10 @@ def refresh_xmltv():
                                 else:
                                     for p in epg.get(channelId):
                                         try:
-                                            start_time = datetime.utcfromtimestamp(p.get("start_timestamp")) + timedelta(hours=portal_epg_offset)
-                                            stop_time = datetime.utcfromtimestamp(p.get("stop_timestamp")) + timedelta(hours=portal_epg_offset)
+                                            #start_time = datetime.utcfromtimestamp(p.get("start_timestamp")) + timedelta(hours=portal_epg_offset)
+                                            #stop_time = datetime.utcfromtimestamp(p.get("stop_timestamp")) + timedelta(hours=portal_epg_offset)
+                                            start_time = datetime.fromtimestamp(p.get("start_timestamp"), timezone.utc) + timedelta(hours=portal_epg_offset)
+                                            stop_time = datetime.fromtimestamp(p.get("stop_timestamp"), timezone.utc) + timedelta(hours=portal_epg_offset)
                                             start = start_time.strftime("%Y%m%d%H%M%S") + " +0000"
                                             stop = stop_time.strftime("%Y%m%d%H%M%S") + " +0000"
                                             if start <= day_before_yesterday_str:
