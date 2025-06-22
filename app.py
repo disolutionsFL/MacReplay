@@ -10,6 +10,7 @@ import threading
 from threading import Thread
 import logging
 import copy
+import base64
 logger = logging.getLogger("MacReplay")
 logger.setLevel(logging.INFO)
 logFormat = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
@@ -162,6 +163,7 @@ defaultPortal = {
     "name": "",
     "url": "",
     "macs": {},
+    "prioritymacs": {},
     "streams per mac": "1",
     "epg offset": "0",
     "proxy": "",
@@ -579,6 +581,7 @@ def portalsAdd():
     name = request.form["name"]
     url = request.form["url"]
     macs = list(set(request.form["macs"].split(",")))
+    prioritymacs = list(set(request.form["prioritymacs"].split(",")))
     streamsPerMac = request.form["streams per mac"]
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
@@ -592,7 +595,32 @@ def portalsAdd():
             flash("Error getting URL for Portal({})".format(name), "danger")
             return redirect("/portals", code=302)
 
+    prioritymacsd = {}
     macsd = {}
+
+    for mac in prioritymacs:
+        token = stb.getToken(url, mac, proxy, useragent)
+        if token:
+            macprofiledata = stb.getProfile(url, mac, token, proxy, useragent)
+            if macprofiledata:
+                macprofiledata["mac"] = mac
+                profiledata.append(macprofiledata)
+
+            expiry = stb.getExpires(url, mac, token, proxy, useragent)
+            if expiry:
+                prioritymacsd[mac] = expiry
+                logger.info(
+                    "Successfully tested PRIORITY MAC({}) for Portal({})".format(mac, name)
+                )
+                flash(
+                    "Successfully tested PRIORITY MAC({}) for Portal({})".format(mac, name),
+                    "success",
+                )
+                continue
+
+        logger.error("Error testing PRIORITY MAC({}) for Portal({})".format(mac, name))
+        flash("Error testing PRIORITY MAC({}) for Portal({})".format(mac, name), "danger")
+
 
     for mac in macs:
         token = stb.getToken(url, mac, proxy, useragent)
@@ -617,12 +645,13 @@ def portalsAdd():
         logger.error("Error testing MAC({}) for Portal({})".format(mac, name))
         flash("Error testing MAC({}) for Portal({})".format(mac, name), "danger")
 
-    if len(macsd) > 0:
+    if len(prioritymacsd) > 0 or len(macsd) > 0:
         portal = {
             "enabled": enabled,
             "name": name,
             "url": url,
             "macs": macsd,
+            "prioritymacs": prioritymacsd,
             "streams per mac": streamsPerMac,
             "epg offset": epgOffset,
             "proxy": proxy,
@@ -662,6 +691,7 @@ def portalUpdate():
     name = request.form["name"]
     url = request.form["url"]
     newmacs = list(set(request.form["macs"].split(",")))
+    newprioritymacs = list(set(request.form["prioritymacs"].split(",")))
     streamsPerMac = request.form["streams per mac"]
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
@@ -677,6 +707,51 @@ def portalUpdate():
             return redirect("/portals", code=302)
 
     portals = getPortals()
+
+    oldprioritymacs = portals[id]["prioritymacs"]
+    prioritymacsout = {}
+    deadprioritymacs = []
+
+    for prioritymac in newprioritymacs:
+        if retest or prioritymac not in oldprioritymacs.keys():
+            token = stb.getToken(url, prioritymac, proxy, useragent)
+            if token:
+                prioritymacprofiledata = stb.getProfile(url, prioritymac, token, proxy, useragent)
+                if prioritymacprofiledata:
+                    prioritymacprofiledata["mac"] = prioritymac
+                    profiledata.append(prioritymacprofiledata)
+
+                expiry = stb.getExpires(url, prioritymac, token, proxy, useragent)
+                if expiry:
+                    prioritymacsout[prioritymac] = expiry
+                    logger.info(
+                        "Successfully tested PRIORITY MAC({}) for Portal({})".format(prioritymac, name)
+                    )
+                    flash(
+                        "Successfully tested PRIORITY MAC({}) for Portal({})".format(prioritymac, name),
+                        "success",
+                    )
+
+            if prioritymac not in list(prioritymacsout.keys()):
+                deadprioritymacs.append(prioritymac)
+
+        if prioritymac in oldprioritymacs.keys() and prioritymac not in deadprioritymacs:
+            prioritymacsout[prioritymac] = oldprioritymacs[prioritymac]
+
+        if prioritymac not in prioritymacsout.keys():
+            logger.error("Error testing PRIORITY MAC({}) for Portal({})".format(prioritymac, name))
+            flash("Error testing PRIORITY MAC({}) for Portal({})".format(prioritymac, name), "danger")
+
+    if len(prioritymacsout) > 0:
+        portals[id]["prioritymacs"] = prioritymacsout
+    else:
+        #portals[id]["prioritymacs"] = {}
+        logger.error(
+            "None of the PRIORITY MACs tested OK for Portal({}). Adding not successfull".format(
+                name
+            )
+        )
+
     oldmacs = portals[id]["macs"]
     macsout = {}
     deadmacs = []
@@ -712,28 +787,30 @@ def portalUpdate():
             flash("Error testing MAC({}) for Portal({})".format(mac, name), "danger")
 
     if len(macsout) > 0:
-        portals[id]["enabled"] = enabled
-        portals[id]["name"] = name
-        portals[id]["url"] = url
         portals[id]["macs"] = macsout
-        portals[id]["streams per mac"] = streamsPerMac
-        portals[id]["epg offset"] = epgOffset
-        portals[id]["proxy"] = proxy
-        portals[id]["useragent"] = useragent
-        savePortals(portals)
-        logger.info("Portal({}) updated!".format(name))
-        flash("Portal({}) updated!".format(name), "success")
-
-        if profiledata:
-            savePortalCache(portals[id], None, profiledata, None, None)
-            logger.info("Portal({}) profile saved!".format(name))
-
     else:
+        #portals[id]["macs"] = {}
         logger.error(
             "None of the MACs tested OK for Portal({}). Adding not successfull".format(
                 name
             )
         )
+
+    #update portal regardless of mac status
+    portals[id]["enabled"] = enabled
+    portals[id]["name"] = name
+    portals[id]["url"] = url
+    portals[id]["streams per mac"] = streamsPerMac
+    portals[id]["epg offset"] = epgOffset
+    portals[id]["proxy"] = proxy
+    portals[id]["useragent"] = useragent
+    savePortals(portals)
+    logger.info("Portal({}) updated!".format(name))
+    flash("Portal({}) updated!".format(name), "success")
+
+    if profiledata:
+        savePortalCache(portals[id], None, profiledata, None, None)
+        logger.info("Portal({}) profile saved!".format(name))
 
     return redirect("/portals", code=302)
 
@@ -772,6 +849,7 @@ def editor_data():
             portalName = portals[portal]["name"]
             url = portals[portal]["url"]
             macs = list(portals[portal]["macs"].keys())
+            prioritymacs = list(portals[portal]["prioritymacs"].keys())
             proxy = portals[portal]["proxy"]
             useragent = portals[portal]["useragent"]
             enabledChannels = portals[portal].get("enabled channels", [])
@@ -784,8 +862,15 @@ def editor_data():
             portalchannels = getCombinedPortalChannelsCache(portals[portal])
             portalgenres = getCombinedPortalGenresCache(portals[portal])
 
+            macsforprocessing = macs
+
+            if prioritymacs is not None and len(prioritymacs) > 0:
+                macsforprocessing = prioritymacs
+                logger.info("Using PRIORITY MAC's for Portal({})".format(portalName))
+
+
             if (portalchannels is None or len(portalchannels) == 0) or (portalgenres is None or len(portalgenres) == 0):
-                for mac in macs:
+                for mac in macsforprocessing:
                     logger.info(f"Using mac: {mac}")
 
                     try:
@@ -872,7 +957,12 @@ def editor_data():
                     channelId = str(channel["id"])
                     channelName = str(channel["name"])
                     channelNumber = str(channel["number"])
+                    xmltvid = str(channel["xmltv_id"])
                     genre = str(genres.get(str(channel["tv_genre_id"])))
+
+                    if xmltvid is None or xmltvid == "":
+                        xmltvid=channelId
+
                     if channelId in enabledChannels:
                         enabled = True
                     else:
@@ -888,7 +978,8 @@ def editor_data():
                         customGenre = ""
                     customEpgId = customEpgIds.get(channelId)
                     if customEpgId == None:
-                        customEpgId = ""
+                        #customEpgId = ""
+                        customEpgId = "{}_{}".format(xmltvid, channelNumber)
                     fallbackChannel = fallbackChannels.get(channelId)
                     if fallbackChannel == None:
                         fallbackChannel = ""
@@ -1067,6 +1158,19 @@ def reloadplaylist():
     last_playlist_host = None  # The playlist will be updated next time it is downloaded
     flash("Kicking off playlist reload...", "success")
 
+    user_dir = os.path.expanduser("~")
+    cache_dir = os.path.join(user_dir, "Evilvir.us")
+    os.makedirs(cache_dir, exist_ok=True)
+    epgcache_file = os.path.join(cache_dir, "MacReplayEPG.xml")
+
+    try:
+        os.remove(epgcache_file)
+    except:
+        logger.warning("EPG Cache file ({}) already expired/deleted".format(epgcache_file))
+        pass
+
+    logger.warning("EPG Cache file ({}) deleted".format(epgcache_file))
+
     threading.Thread(target=refresh_xmltv, daemon=True).start()  # Force update in a separate thread
     Thread(target=refresh_lineup).start()  # Update the channel lineup for plex.
 
@@ -1115,6 +1219,7 @@ def generate_playlist():
                 name = portals[portal]["name"]
                 url = portals[portal]["url"]
                 macs = list(portals[portal]["macs"].keys())
+                prioritymacs = list(portals[portal]["prioritymacs"].keys())
                 proxy = portals[portal]["proxy"]
                 useragent = portals[portal]["useragent"]
                 customChannelNames = portals[portal].get("custom channel names", {})
@@ -1122,20 +1227,39 @@ def generate_playlist():
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
                 customEpgIds = portals[portal].get("custom epg ids", {})
 
-                for mac in macs:
+                macsforprocessing = macs
+
+                if prioritymacs is not None and len(prioritymacs) > 0:
+                    macsforprocessing = prioritymacs
+                    logger.info("Generating playlist using PRIORITY MAC's for Portal({})".format(name))
+
+                for mac in macsforprocessing:
                     try:
                         token = stb.getToken(url, mac, proxy, useragent)
                         stb.getProfile(url, mac, token, proxy, useragent)
                         allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
                         genres = stb.getGenreNames(url, mac, token, proxy, useragent)
-                        break
+
+                        if allChannels and genres:
+                            break #we got data, no need to check next mac
                     except:
+                        if prioritymacs is not None and len(prioritymacs) > 0:
+                            logger.info("Error Generating playlist using PRIORITY MAC's for Portal({}), check that Priority MAC's are still valid".format(name))
+                        else:
+                            logger.info(
+                                "Error Generating playlist for Portal({}), check that Priority MAC's are still valid".format(name))
                         allChannels = None
                         genres = None
 
                 if allChannels and genres:
                     for channel in allChannels:
                         channelId = str(channel.get("id"))
+                        logo = str(channel.get("logo"))
+                        xmltvid = str(channel["xmltv_id"])
+
+                        if xmltvid is None or xmltvid == "":
+                            xmltvid = channelId
+
                         if channelId in enabledChannels:
                             channelName = customChannelNames.get(channelId)
                             if channelName is None:
@@ -1149,7 +1273,8 @@ def generate_playlist():
                                 channelNumber = str(channel.get("number"))
                             epgId = customEpgIds.get(channelId)
                             if epgId is None:
-                                epgId = channelName
+                                #epgId = channelName
+                                epgId = "{}_{}".format(xmltvid, channelNumber)
                             channels.append(
                                 "#EXTINF:-1"
                                 + ' tvg-id="'
@@ -1160,6 +1285,7 @@ def generate_playlist():
                                     == "true"
                                     else ""
                                 )
+                                + '" tvg-logo="' + logo
                                 + (
                                     '" group-title="' + genre
                                     if getSettings().get("use channel genres", "true")
@@ -1215,6 +1341,9 @@ def refresh_xmltv():
     os.makedirs(cache_dir, exist_ok=True)
     cache_file = os.path.join(cache_dir, "MacReplayEPG.xml")
 
+    portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
+    os.makedirs(portalcachepath, exist_ok=True)
+
     # Define date cutoff for programme filtering
     day_before_yesterday = datetime.now(timezone.utc) - timedelta(days=2)
     day_before_yesterday_str = day_before_yesterday.strftime("%Y%m%d%H%M%S") + " +0000"
@@ -1256,32 +1385,74 @@ def refresh_xmltv():
                 name = portals[portal]["name"]
                 url = portals[portal]["url"]
                 macs = list(portals[portal]["macs"].keys())
+                prioritymacs = list(portals[portal]["prioritymacs"].keys())
                 proxy = portals[portal]["proxy"]
                 customChannelNames = portals[portal].get("custom channel names", {})
                 customEpgIds = portals[portal].get("custom epg ids", {})
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
                 useragent = portals[portal]["useragent"]
 
-                for mac in macs:
+                macsforprocessing = macs
+
+                if prioritymacs is not None and len(prioritymacs) > 0:
+                    macsforprocessing = prioritymacs
+                    logger.info("Generating EPG using PRIORITY MAC's for Portal({})".format(name))
+
+                for mac in macsforprocessing:
                     try:
                         token = stb.getToken(url, mac, proxy, useragent)
-                        stb.getProfile(url, mac, token, proxy, useragent)
+                        profile = stb.getProfile(url, mac, token, proxy, useragent)
                         allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
-                        epg = stb.getEpg(url, mac, token, 24, proxy, useragent)
-                        break
+                        epg = stb.getEpg(url, mac, token, 48, proxy, useragent)
+                        #lcl = stb.getlocalization(url, proxy, useragent)
+
+                        timenowutc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+                        timenowutcstr = timenowutc.strftime("%Y%m%d%H%M%S") + " +0000"
+                        timenowutcwithoffset = timenowutc + timedelta(hours=portal_epg_offset)
+                        timenowutcwithoffsetstr = timenowutcwithoffset.strftime("%Y%m%d%H%M%S") + " +0000"
+
+                        logger.info("Portal({}), MAC({}): Profile data - \"default_timezone\": {}, \"timezone_diff\" {}".format(name, mac, profile["default_timezone"], profile["timezone_diff"]))
+                        logger.info("Time Now (UTC) \"{}\", Portal EPG Offset: {}, Time Now with Offset \"{}\"".format(timenowutcstr, portal_epg_offset, timenowutcwithoffsetstr))
+
+                        if epg is not None:
+                            #write raw epg file to disk for debugging
+                            portalprofiledatafilename = name.replace(" ", "_")
+                            portalprofiledatafilename = portalprofiledatafilename.replace("'", "")
+                            portalprofiledatafilename = portalprofiledatafilename.replace("\"", "")
+                            portalprofiledatafilename = portalprofiledatafilename.replace(",", "_")
+                            raw_epg_file = os.path.join(portalcachepath, "{}_RawEPG.json".format(portalprofiledatafilename))
+                            with open(raw_epg_file, "w", encoding="utf-8") as f:
+                                json.dump(epg, f, indent=4)
+                            break # we got data, no need ot look at next mac
                     except Exception as e:
                         allChannels = None
                         epg = None
-                        logger.error(f"Error fetching data for MAC {mac}: {e}")
+                        if prioritymacs is not None and len(prioritymacs) > 0:
+                            logger.info("Error Fetching EPG data using PRIORITY MAC's for Portal({}), check that Priority MAC's are still valid".format(name))
+                        else:
+                            logger.info("Error Fetching EPG data for Portal({}), check that MAC's are still valid, MAC {}: {}".format(name, mac, e))
+                            #logger.error(f"Error fetching data for MAC {mac}: {e}")
 
                 if allChannels and epg:
                     for channel in allChannels:
+                        # initialize
+                        channelName = ""
+                        channelNumber = ""
+
                         try:
                             channelId = str(channel.get("id"))
+                            xmltvid = str(channel.get("xmltv_id"))
+                            if xmltvid is None or xmltvid == "":
+                                xmltvid = channelId
+
+
                             if str(channelId) in enabledChannels:
                                 channelName = customChannelNames.get(channelId, channel.get("name"))
                                 channelNumber = customChannelNumbers.get(channelId, str(channel.get("number")))
                                 epgId = customEpgIds.get(channelId, channelNumber)
+
+                                if len(customEpgIds) == 0:
+                                    epgId = "{}_{}".format(xmltvid, channelNumber)
 
                                 channelEle = ET.SubElement(
                                     channels, "channel", id=epgId
@@ -1307,14 +1478,21 @@ def refresh_xmltv():
                                 else:
                                     for p in epg.get(channelId):
                                         try:
-                                            #start_time = datetime.utcfromtimestamp(p.get("start_timestamp")) + timedelta(hours=portal_epg_offset)
-                                            #stop_time = datetime.utcfromtimestamp(p.get("stop_timestamp")) + timedelta(hours=portal_epg_offset)
-                                            start_time = datetime.fromtimestamp(p.get("start_timestamp"), timezone.utc) + timedelta(hours=portal_epg_offset)
-                                            stop_time = datetime.fromtimestamp(p.get("stop_timestamp"), timezone.utc) + timedelta(hours=portal_epg_offset)
-                                            start = start_time.strftime("%Y%m%d%H%M%S") + " +0000"
-                                            stop = stop_time.strftime("%Y%m%d%H%M%S") + " +0000"
-                                            if start <= day_before_yesterday_str:
-                                                continue
+                                            #start_timeold = datetime.utcfromtimestamp(p.get("start_timestamp")) + timedelta(hours=portal_epg_offset)
+                                            #stop_timeold = datetime.utcfromtimestamp(p.get("stop_timestamp")) + timedelta(hours=portal_epg_offset)
+                                            #start_time = datetime.fromtimestamp(p.get("start_timestamp"), timezone.utc)
+                                            #stop_time = datetime.fromtimestamp(p.get("stop_timestamp"), timezone.utc)
+                                            start_time = datetime.fromtimestamp(p.get("start_timestamp"),timezone.utc) + timedelta(hours=portal_epg_offset)
+                                            stop_time = datetime.fromtimestamp(p.get("stop_timestamp"),timezone.utc) + timedelta(hours=portal_epg_offset)
+                                            #startold = start_timeold.strftime("%Y%m%d%H%M%S") + " +0000"
+                                            #stopold = stop_timeold.strftime("%Y%m%d%H%M%S") + " +0000"
+                                            start = start_time.strftime("%Y%m%d%H%M%S")
+                                            stop = stop_time.strftime("%Y%m%d%H%M%S")
+                                            #start = start_time.strftime("%Y%m%d%H%M%S") + " +0000"
+                                            #stop = stop_time.strftime("%Y%m%d%H%M%S") + " +0000"
+                                            #if start <= day_before_yesterday_str:
+                                            #    continue
+
                                             programmeEle = ET.SubElement(
                                                 programmes,
                                                 "programme",
@@ -1328,7 +1506,10 @@ def refresh_xmltv():
                                             logger.error(f"Error processing programme for channel {channelName} (ID: {channelId}): {e}")
                                             pass
                         except Exception as e:
-                            logger.error(f"| Channel:{channelNumber} | {channelName} | {e}")
+                            if channelNumber and channelName:
+                                logger.error(f"| Channel:{channelNumber} | {channelName} | {e}")
+                            else:
+                                logger.error(f"| Error iterating epg data: {e}")
                             pass
                 else:
                     logger.error(f"Error making XMLTV for {name}, skipping")
@@ -1384,6 +1565,7 @@ def channel(portalId, channelId):
             occupied.setdefault(portalId, [])
             occupied.get(portalId, []).append(
                 {
+                    "portalId": portalId,
                     "mac": mac,
                     "channel id": channelId,
                     "channel name": channelName,
@@ -1397,6 +1579,7 @@ def channel(portalId, channelId):
         def unoccupy():
             occupied.get(portalId, []).remove(
                 {
+                    "portalId": portalId,
                     "mac": mac,
                     "channel id": channelId,
                     "channel name": channelName,
@@ -1785,6 +1968,44 @@ def log():
     return log_content
 
 
+@app.route("/keepalive")
+@authorise
+def keepalive():
+
+    if occupied is None or len(occupied) == 0:
+        return ""
+    else:
+        if occupied is not None:
+            count = 0
+            portalId = ""
+            for i in occupied:
+                portalId = i
+                for p in occupied.get(portalId, []):
+                    count = count + 1
+
+                    if p["portalId"] != "" and p["mac"] != "":
+
+                        portal = getPortals().get(portalId)
+                        if portal:
+                            portalName = portal.get("name")
+                            url = portal.get("url")
+                            mac = p["mac"]
+                            proxy = portal.get("proxy")
+                            useragent = portal.get("useragent")
+                            token = stb.getToken(url, mac, proxy, useragent)
+                            logger.info("Sending Keep-Alive to portal({}), mac({})".format(portalName, mac))
+                            watchdogresp = stb.watchdogUpdate(url, mac, token, proxy, useragent)
+                            if watchdogresp == "\n":
+                                watchdogresp = ""
+
+                            return "{}".format(watchdogresp)
+                        else:
+                            return ""
+                    else:
+                        return ""
+        return ""
+
+
 # HD Homerun #
 
 
@@ -1858,17 +2079,26 @@ def refresh_lineup():
                 name = portals[portal]["name"]
                 url = portals[portal]["url"]
                 macs = list(portals[portal]["macs"].keys())
+                prioritymacs = list(portals[portal]["prioritymacs"].keys())
                 proxy = portals[portal]["proxy"]
                 useragent = portals[portal]["useragent"]
                 customChannelNames = portals[portal].get("custom channel names", {})
                 customChannelNumbers = portals[portal].get("custom channel numbers", {})
 
-                for mac in macs:
+                macsforprocessing = macs
+
+                if prioritymacs is not None and len(prioritymacs) > 0:
+                    macsforprocessing = prioritymacs
+                    logger.info("Refreshing lineup Using PRIORITY MAC's for Portal({})".format(name))
+
+                for mac in macsforprocessing:
                     try:
                         token = stb.getToken(url, mac, proxy, useragent)
                         stb.getProfile(url, mac, token, proxy, useragent)
                         allChannels = stb.getAllChannels(url, mac, token, proxy, useragent)
-                        break
+
+                        if allChannels:
+                            break #we got data, no need to check next mac
                     except:
                         allChannels = None
 

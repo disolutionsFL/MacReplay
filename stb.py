@@ -1,12 +1,59 @@
+import os
 import requests
 from requests.adapters import HTTPAdapter, Retry
-from urllib.parse import urlparse
-import re
+import json
+import urllib
+#from urllib.parse import urlparse
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
+import re, uuid
+from time import time
+from time import sleep
+from datetime import datetime, timedelta
+import math
+from urllib.request import urlopen
+import base64
+import logging
+
+stblogger = logging.getLogger("MacReplay")
+stblogger.setLevel(logging.INFO)
+logFormat = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+
+
+home_dir = os.path.expanduser("~")  # Get the user's home directory
+log_dir = os.path.join(home_dir, "Evilvir.us")  # Subdirectory for logs
+# Create the directory if it doesn't already exist
+os.makedirs(log_dir, exist_ok=True)
+# Full path to the log file
+log_file_path = os.path.join(log_dir, "MacReplay.log")
+# Set up the FileHandler
+fileHandler = logging.FileHandler(log_file_path)
+fileHandler.setFormatter(logFormat)
+
+stblogger.addHandler(fileHandler)
+consoleFormat = logging.Formatter("[%(levelname)s] %(message)s")
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(consoleFormat)
+stblogger.addHandler(consoleHandler)
 
 s = requests.Session()
 retries = Retry(total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
 s.mount("http://", HTTPAdapter(max_retries=retries))
-defaultUserAgent = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+#defaultUserAgent = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3"
+defaultUserAgent = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 4 rev: 2116 Mobile Safari/533.3"
+defaultModel = "MAG254"
+defaultSerialNumber = "0000000000000"
+defaultTimezone = "America/Toronto"
+
+def is_json(myjson):
+  #try:
+  #  json_object = json.loads(myjson)
+  #except ValueError, e:
+  #  return False
+  json_object = json.loads(myjson)
+  return True
 
 def getUrl(url, proxy=None, useragent=None):
     if useragent is None:
@@ -72,7 +119,7 @@ def getToken(url, mac, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {"User-Agent": useragent}
     try:
         response = s.get(
@@ -93,7 +140,7 @@ def getProfile(url, mac, token, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -117,7 +164,7 @@ def getExpires(url, mac, token, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -141,7 +188,7 @@ def getAllChannels(url, mac, token, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -166,7 +213,7 @@ def getGenres(url, mac, token, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -209,7 +256,7 @@ def getLink(url, mac, token, cmd, proxy=None, useragent=None):
 
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -237,7 +284,7 @@ def getEpg(url, mac, token, period, proxy=None, useragent=None):
         useragent = defaultUserAgent
 
     proxies = {"http": proxy, "https": proxy}
-    cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
     headers = {
         "User-Agent": useragent,
         "Authorization": "Bearer " + token,
@@ -248,6 +295,119 @@ def getEpg(url, mac, token, period, proxy=None, useragent=None):
             + "?type=itv&action=get_epg_info&period="
             + str(period)
             + "&JsHttpRequest=1-xml",
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+        )
+        data = response.json()["js"]["data"]
+        if data:
+            return data
+    except:
+        pass
+
+def watchdogUpdate(url, mac, token, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
+    proxies = {"http": proxy, "https": proxy}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
+    headers = {
+        "User-Agent": useragent,
+        "Authorization": "Bearer " + token,
+    }
+    try:
+
+        response = s.get(
+            url
+            + "action=get_events&event_active_id=0&init=0&type=watchdog&cur_play_type=1&JsHttpRequest=1-xml",
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+        )
+        #data = response.json()["js"]["data"]
+        data = response.text
+        if data:
+            return data
+    except Exception as e:
+        stblogger.error("stb.watchdogUpdate() Error: {}".format(e))
+        pass
+
+
+def getEpgSDT(url, mac, token, ch_id, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
+    proxies = {"http": proxy, "https": proxy}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
+    headers = {
+        "User-Agent": useragent,
+        "Authorization": "Bearer " + token,
+    }
+    try:
+        now = datetime.today() - timedelta(days=1)
+
+        response = s.get(
+            url
+            + "?type=epg"
+            + "&action=get_simple_data_table"
+            + "&ch_id=" + str(ch_id)
+            + "&date=" + str(now.strftime("%Y-%m-%d"))
+            + "&p=0"
+            + "&JsHttpRequest=1-xml",
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+        )
+        data = response.json()["js"]["data"]
+        if data:
+            return data
+    except:
+        pass
+
+def getShortEpg(url, mac, token, ch_id, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
+    proxies = {"http": proxy, "https": proxy}
+    cookies = {"mac": mac, "stb_lang": "en", "timezone": defaultTimezone}
+    headers = {
+        "User-Agent": useragent,
+        "Authorization": "Bearer " + token,
+    }
+    try:
+        #now = datetime.today() - timedelta(days=1)
+        response = s.get(
+            url
+            + "?type=itv"
+            + "&action=get_short_epg"
+            + "&ch_id=" + str(ch_id)
+            + "&size=10&JsHttpRequest=1-xml",
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+        )
+        data = response.json()["js"]
+        if data:
+            return data
+    except  Exception as e:
+        stblogger.error("stb.getShortEpg() Error: {}".format(e))
+        pass
+
+
+def getlocalization(url, proxy=None, useragent=None):
+    if useragent is None:
+        useragent = defaultUserAgent
+
+    proxies = {"http": proxy, "https": proxy}
+    #cookies = {"mac": mac, "stb_lang": "en", "timezone": "America/Toronto"}
+    cookies = {"stb_lang": "en", "timezone": defaultTimezone}
+    headers = {
+        "User-Agent": useragent
+    }
+    try:
+        response = s.get(
+            url
+            + "?type=stb&action=get_localization&JsHttpRequest=1-xml",
             cookies=cookies,
             headers=headers,
             proxies=proxies,

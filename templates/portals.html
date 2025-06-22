@@ -24,6 +24,7 @@
                     data-url="{{ portals[portal].url }}" data-proxy="{{ portals[portal].proxy }}"
                      data-url="{{ portals[portal].url }}" data-useragent="{{ portals[portal].useragent }}"
                     data-macs="{{ portals[portal].macs|join(',') }}"
+                     data-prioritymacs="{{ portals[portal].prioritymacs|join(',') }}"
                     data-streamsPerMac="{{ portals[portal]['streams per mac'] }}" data-bs-toggle="modal"
                     data-epgOffset="{{ portals[portal]['epg offset'] }}" data-bs-toggle="modal"
                     data-bs-target="#modalEdit">
@@ -31,7 +32,23 @@
                     <i class="me-2 fa fa-ban"{{ "hidden" if portals[portal].enabled =='true' }}></i>
                     {{ portals[portal].name }}
                 </div>
+                {% if portals[portal].prioritymacs is not none and portals[portal].prioritymacs.items()|length > 0 %}
                 <div class="card-body">
+                    <h6><span>Priority MAC's</span></h6>
+                    <table class="table table-sm mt-2">
+                        {% for key, value in portals[portal].prioritymacs.items() %}
+                        <tr>
+                            <td><span>{{key.upper()}}</span></td>
+                            <td><span>:</span></td>
+                            <td><span name="expiryString">{{value}}</span></td>
+
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                {% endif %}
+                <div class="card-body">
+                <h6><span>MAC's</span></h6>
                     <table class="table table-sm mt-2">
                         {% for key, value in portals[portal].macs.items() %}
                         <tr>
@@ -93,6 +110,12 @@
 					<h6>MACs:</h6>
 					<input type="text" name="macs" class="form-control flex-fill" title="MACs" required>
 					<span class="text-muted">Enter a comma-separated list of MAC addresses.</span>
+
+                    <br><br>
+
+					<h6>Priority MACs:</h6>
+					<input type="text" name="prioritymacs" class="form-control flex-fill" title="Priority MACs">
+					<span class="text-muted">Enter a comma-separated list of Priority MAC addresses used exclusively for Playlist editing and EPG pulls (leave empty to use ALL macs defined above, caution SLOW!!)</span>
 
 					<br><br>
 
@@ -173,6 +196,12 @@
 
                     <br><br>
 
+                    <h6>Prority MACs:</h6>
+                    <input type="text" name="prioritymacs" id="editPriorityMacs" class="form-control flex-fill" title="Priority MACs">
+                    <span class="text-muted">Enter a comma-separated list of Priority MAC addresses used exclusively for Playlist editing and EPG pulls (leave empty to use ALL macs defined above, caution SLOW!!)</span>
+
+					<br><br>
+
 					<div class="row">
 						<div class="col">
 							<h6>Streams Per MAC:</h6>
@@ -239,6 +268,7 @@
         var proxy = button.getAttribute('data-proxy');
         var useragent = button.getAttribute('data-useragent');
         var macs = button.getAttribute('data-macs');
+        var prioritymacs = button.getAttribute('data-prioritymacs');
         var streamsPerMac = button.getAttribute('data-streamsPerMac');
         var epgOffset = button.getAttribute('data-EpgOffset');
         document.getElementById('editId').value = id;
@@ -252,6 +282,7 @@
         document.getElementById('editProxy').value = proxy;
         document.getElementById('editUseragent').value = useragent;
         document.getElementById('editMacs').value = macs;
+        document.getElementById('editPriorityMacs').value = prioritymacs;
         document.getElementById('editStreamsPerMac').value = streamsPerMac;
         document.getElementById('editepgOffset').value = epgOffset;
         document.getElementById('deleteId').value = id;

@@ -78,6 +78,7 @@
     var epgEdits = [];
     var fallbackEdits = [];
     var logURL = "{{ url_for('log') }}";
+    var keepaliveURL = "{{ url_for('keepalive') }}"
 
     function editAll(ele) {
         var checkboxes = document.getElementsByClassName('checkbox');
@@ -260,6 +261,20 @@
             return updateLog;
         }(), 1000);
 
+        //watchdog/keepalive
+        setInterval(function updateLog() {
+            fetch(keepaliveURL)
+                .then(function (response) {
+                    return response.text();
+                })
+                .then(function (text) {
+                    if(text && text.length > 0) {
+                        toastr["info"]("keep alive response: " + text);
+                    }
+
+                })
+            return updateLog;
+        }(), 120000);
 
         $('#table').on('preDraw.dt', function () {
             //debugger;
@@ -390,7 +405,7 @@
 						// Return the button HTML with the dynamically constructed URL
 						return '<button \
 							class="btn btn-success btn-block" \
-							title="Play" \
+							title="Play (channelId: ' + row.channelId + ')" \
 							data-bs-toggle="modal" \
 							data-bs-target="#videoModal" \
 							onclick="selectChannel(this)" \
