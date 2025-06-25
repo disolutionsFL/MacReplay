@@ -27,6 +27,8 @@
                      data-prioritymacs="{{ portals[portal].prioritymacs|join(',') }}"
                     data-streamsPerMac="{{ portals[portal]['streams per mac'] }}" data-bs-toggle="modal"
                     data-epgOffset="{{ portals[portal]['epg offset'] }}" data-bs-toggle="modal"
+                     data-kaEnabled="{{ portals[portal].kaenabled }}"
+                    data-kaInterval="{{ portals[portal]['ka interval'] }}" data-bs-toggle="modal"
                     data-bs-target="#modalEdit">
                     <i class="me-2 fa fa-server"{{ "hidden" if portals[portal].enabled =='false' }}></i>
                     <i class="me-2 fa fa-ban"{{ "hidden" if portals[portal].enabled =='true' }}></i>
@@ -218,6 +220,18 @@
 					</div>
 
 
+                    <br><br>
+
+                    <div class="row">
+						<div class="input-group flex-nowrap">
+							<h6>Enable Keep-Alive:</h6>
+							<div class="form-check form-switch ms-auto">
+                                <input type="checkbox" form="update" class="checkbox form-check-input" name="enabled" id="editkaEnabled" value="true">
+                            </div>
+						</div>
+                        <br />
+                        <span class="text-muted">Sends keep-alive to portal at defined interval (<a href="/settings#keepalive" target="_blank" title="go to settings">settings</a>)</span>
+					</div>
 
 
                     <br><br>
@@ -271,11 +285,17 @@
         var prioritymacs = button.getAttribute('data-prioritymacs');
         var streamsPerMac = button.getAttribute('data-streamsPerMac');
         var epgOffset = button.getAttribute('data-EpgOffset');
+        var kaEnabled = button.getAttribute('data-KaEnabled');
         document.getElementById('editId').value = id;
         if (enabled == "true") {
             document.getElementById('editEnabled').checked = true;
         } else {
             document.getElementById('editEnabled').checked = false;
+        }
+        if (kaEnabled == "true") {
+            document.getElementById('editkaEnabled').checked = true;
+        } else {
+            document.getElementById('editkaEnabled').checked = false;
         }
         document.getElementById('editName').value = name;
         document.getElementById('editUrl').value = url;
@@ -285,6 +305,7 @@
         document.getElementById('editPriorityMacs').value = prioritymacs;
         document.getElementById('editStreamsPerMac').value = streamsPerMac;
         document.getElementById('editepgOffset').value = epgOffset;
+        document.getElementById('editkaEnabled').value = kaEnabled;
         document.getElementById('deleteId').value = id;
         document.getElementById('deleteName').value = name;
         document.getElementById('retest').checked = false;

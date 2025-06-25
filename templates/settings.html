@@ -103,6 +103,19 @@
         </div>
         <span class="text-muted">Try all MAC's before looking for a fallback.</span>
 
+        <br><br><a id="keepalive" />
+
+        <h6>Portal Keep-Alive Interval (mins):</h6>
+        <div class="col-md-2">
+            <div class="input-group flex-nowrap">
+                <input form="save" type="number" name="ka interval" id="ka interval" class="form-control"
+                    value="{{ settings['ka interval'] }}" required>
+                <button class="btn btn-danger btn-block" title="Reset"><i class="fa fa-undo"
+                        onclick="resetDefault(this)" data-input="ka interval" data-default="{{ defaultSettings['ka interval'] }}"></i></button>
+            </div>
+        </div>
+        <span class="text-muted">How long between when Keep-Alive requests are sent (if enabled for portal)</span>
+
     </div>
 
     <br>

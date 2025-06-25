@@ -17,26 +17,7 @@ from urllib.request import urlopen
 import base64
 import logging
 
-stblogger = logging.getLogger("MacReplay")
-stblogger.setLevel(logging.INFO)
-logFormat = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
-
-
-home_dir = os.path.expanduser("~")  # Get the user's home directory
-log_dir = os.path.join(home_dir, "Evilvir.us")  # Subdirectory for logs
-# Create the directory if it doesn't already exist
-os.makedirs(log_dir, exist_ok=True)
-# Full path to the log file
-log_file_path = os.path.join(log_dir, "MacReplay.log")
-# Set up the FileHandler
-fileHandler = logging.FileHandler(log_file_path)
-fileHandler.setFormatter(logFormat)
-
-stblogger.addHandler(fileHandler)
-consoleFormat = logging.Formatter("[%(levelname)s] %(message)s")
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(consoleFormat)
-stblogger.addHandler(consoleHandler)
+logger = None
 
 s = requests.Session()
 retries = Retry(total=3, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
@@ -46,6 +27,12 @@ defaultUserAgent = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHT
 defaultModel = "MAG254"
 defaultSerialNumber = "0000000000000"
 defaultTimezone = "America/Toronto"
+
+def set_logger(loggerinstance):
+    if loggerinstance:
+        global logger
+        logger = loggerinstance
+
 
 def is_json(myjson):
   #try:
@@ -329,7 +316,7 @@ def watchdogUpdate(url, mac, token, proxy=None, useragent=None):
         if data:
             return data
     except Exception as e:
-        stblogger.error("stb.watchdogUpdate() Error: {}".format(e))
+        logger.error("stb.watchdogUpdate() Error: {}".format(e))
         pass
 
 
@@ -390,7 +377,7 @@ def getShortEpg(url, mac, token, ch_id, proxy=None, useragent=None):
         if data:
             return data
     except  Exception as e:
-        stblogger.error("stb.getShortEpg() Error: {}".format(e))
+        logger.error("stb.getShortEpg() Error: {}".format(e))
         pass
 
 

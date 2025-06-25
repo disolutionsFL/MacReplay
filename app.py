@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import threading
 from threading import Thread
+import multiprocessing
+from multiprocessing import Process, Queue
 import logging
 import copy
 import base64
@@ -78,8 +80,6 @@ import waitress
 
 app = Flask(__name__)
 app.secret_key = secrets.token_urlsafe(32)
-
-
 basePath = os.path.abspath(os.getcwd())
 
 if os.getenv("HOST"):
@@ -109,6 +109,7 @@ cached_playlist = None
 last_playlist_host = None
 cached_xmltv = None
 last_updated = 0
+stb.set_logger(logger)
 
 
 d_ffmpegcmd = [
@@ -156,6 +157,7 @@ defaultSettings = {
     "hdhr name": "MacReplay",
     "hdhr id": str(uuid.uuid4().hex),
     "hdhr tuners": "10",
+    "ka interval": "2",
 }
 
 defaultPortal = {
@@ -168,6 +170,7 @@ defaultPortal = {
     "epg offset": "0",
     "proxy": "",
     "useragent": "",
+    "kaenabled": "true",
     "enabled channels": [],
     "custom channel names": {},
     "custom channel numbers": {},
@@ -558,6 +561,46 @@ def moveMac(portalId, mac):
     portals[portalId]["macs"] = macs
     savePortals(portals)
 
+def keepalive_watchdog():
+
+    if occupied is None or len(occupied) == 0:
+        return ""
+    else:
+        if occupied is not None:
+            count = 0
+            portalId = ""
+            for i in occupied:
+                portalId = i
+                for p in occupied.get(portalId, []):
+                    count = count + 1
+
+                    if p["portalId"] != "" and p["mac"] != "":
+
+                        portal = getPortals().get(portalId)
+                        if portal:
+                            portalName = portal.get("name")
+                            url = portal.get("url")
+                            mac = p["mac"]
+                            proxy = portal.get("proxy")
+                            useragent = portal.get("useragent")
+                            kaenabled = portal.get("kaenabled")
+
+                            if kaenabled and kaenabled == "true":
+                                token = stb.getToken(url, mac, proxy, useragent)
+                                logger.info("Sending Keep-Alive to portal({}), mac({})".format(portalName, mac))
+                                watchdogresp = stb.watchdogUpdate(url, mac, token, proxy, useragent)
+                                if watchdogresp == "\n":
+                                    watchdogresp = ""
+                                return "{}".format(watchdogresp)
+                            else:
+                                #keep-alive not enabled for portal
+                                return ""
+                        else:
+                            return ""
+                    else:
+                        return ""
+        return ""
+
 
 @app.route("/", methods=["GET"])
 @authorise
@@ -586,6 +629,7 @@ def portalsAdd():
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
     useragent = request.form["useragent"]
+    kaenabled = "true"
     profiledata = []
 
     if not url.endswith(".php"):
@@ -656,6 +700,7 @@ def portalsAdd():
             "epg offset": epgOffset,
             "proxy": proxy,
             "useragent": useragent,
+            "kaenabled": kaenabled
         }
 
         for setting, default in defaultPortal.items():
@@ -696,6 +741,7 @@ def portalUpdate():
     epgOffset = request.form["epg offset"]
     proxy = request.form["proxy"]
     useragent = request.form["useragent"]
+    kaenabled = request.form.get("kaenabled", "false")
     retest = request.form.get("retest", None)
     profiledata = []
 
@@ -804,6 +850,7 @@ def portalUpdate():
     portals[id]["epg offset"] = epgOffset
     portals[id]["proxy"] = proxy
     portals[id]["useragent"] = useragent
+    portals[id]["kaenabled"] = kaenabled
     savePortals(portals)
     logger.info("Portal({}) updated!".format(name))
     flash("Portal({}) updated!".format(name), "success")
@@ -1971,39 +2018,7 @@ def log():
 @app.route("/keepalive")
 @authorise
 def keepalive():
-
-    if occupied is None or len(occupied) == 0:
-        return ""
-    else:
-        if occupied is not None:
-            count = 0
-            portalId = ""
-            for i in occupied:
-                portalId = i
-                for p in occupied.get(portalId, []):
-                    count = count + 1
-
-                    if p["portalId"] != "" and p["mac"] != "":
-
-                        portal = getPortals().get(portalId)
-                        if portal:
-                            portalName = portal.get("name")
-                            url = portal.get("url")
-                            mac = p["mac"]
-                            proxy = portal.get("proxy")
-                            useragent = portal.get("useragent")
-                            token = stb.getToken(url, mac, proxy, useragent)
-                            logger.info("Sending Keep-Alive to portal({}), mac({})".format(portalName, mac))
-                            watchdogresp = stb.watchdogUpdate(url, mac, token, proxy, useragent)
-                            if watchdogresp == "\n":
-                                watchdogresp = ""
-
-                            return "{}".format(watchdogresp)
-                        else:
-                            return ""
-                    else:
-                        return ""
-        return ""
+    return keepalive_watchdog()
 
 
 # HD Homerun #
@@ -2156,16 +2171,35 @@ def start_refresh():
     # Run refresh_lineup in a separate thread
     threading.Thread(target=refresh_lineup, daemon=True).start()
     threading.Thread(target=refresh_xmltv, daemon=True).start()
-    
+
+
     
 if __name__ == "__main__":
     config = loadConfig()
 
     # Start the refresh thread before the server
-    start_refresh()
+    #unnecessary, the first request to /xmltv or /playlist would call the methods contained within. Actually found doubling up on calls happening at times when reloading server
+    # start_refresh()
+
+    def keepalivethread():
+        while True:
+            kainterval = getSettings().get("ka interval")
+
+            if kainterval is not None and int(kainterval) >= 1:
+                keepalive_watchdog()
+                time.sleep(int(kainterval)*60)
+            else:
+                logger.info("Portal Keep-Alive Interval invalid, must be at least 1 minute")
+                time.sleep(60)
+
+
+    kat = threading.Thread(name='keep-alive thread', target=keepalivethread)
+    kat.daemon = True
+    kat.start()
 
     # Start the server
     if "TERM_PROGRAM" in os.environ.keys() and os.environ["TERM_PROGRAM"] == "vscode":
         app.run(host="0.0.0.0", port=8001, debug=True)
     else:
         waitress.serve(app, port=8001, _quiet=True, threads=24)
+
