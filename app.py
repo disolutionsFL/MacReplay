@@ -608,6 +608,12 @@ def home():
     return redirect("/portals", code=302)
 
 
+@app.route("/webplayer", methods=["GET"])
+@authorise
+def webplayer():
+    return render_template("webplayer.html", portals=getPortals())
+
+
 @app.route("/portals", methods=["GET"])
 @authorise
 def portals():
