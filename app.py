@@ -1650,6 +1650,7 @@ def xmltv():
 def channel(portalId, channelId):
     web = request.args.get("web")
     ios = request.args.get("ios")
+    hls = request.args.get("hls")
     streamid = str(uuid.uuid4())
 
     if web is not None and web == "true":
@@ -1661,6 +1662,11 @@ def channel(portalId, channelId):
         ios = True
     else:
         ios = False
+
+    if hls is not None and hls == "true":
+        hls = True
+    else:
+        hls = False
 
     def streamData():
         def occupy():
@@ -1676,6 +1682,7 @@ def channel(portalId, channelId):
                     "start time": startTime,
                     "web": web,
                     "ios": ios,
+                    "hls": hls,
                     "streamid": streamid,
                     "pid": 0
                 }
@@ -1828,8 +1835,8 @@ def channel(portalId, channelId):
             )
 
             if getSettings().get("test streams", "true") == "false" or testStream():
-                if web:
-                    if not ios:
+                if web or hls:
+                    if not ios and not hls:
                         ffmpegcmd = [
                             ffmpeg_path,
                             "-loglevel",
@@ -1899,7 +1906,11 @@ def channel(portalId, channelId):
                             "-level",
                             "3.1",
                             "-preset",
-                            "medium",
+                            "veryfast",
+                            #"-g",
+                            #"25",
+                            "-sc_threshold",
+                            "0",
                             "-crf",
                             "23",
                             "-x264-params",
@@ -1914,16 +1925,16 @@ def channel(portalId, channelId):
                             "libx264",
                             "-b:v:0",
                             "2000k",
-                            "-map",
-                            "v:0",
-                            "-c:v:1",
-                            "libx264",
-                            "-b:v:1",
-                            "6000k",
-                            "-map",
-                            "a:0",
+                            #"-map",
+                            #"v:0",
+                            #"-c:v:1",
+                            #"libx264",
+                            #"-b:v:1",
+                            #"6000k",
                             "-map",
                             "a:0",
+                            #"-map",
+                            #"a:0",
                             "-c:a",
                             "aac",
                             "-b:a",
@@ -1939,7 +1950,8 @@ def channel(portalId, channelId):
                             "-master_pl_name",
                             "master.m3u8",
                             "-var_stream_map",
-                            "v:0,a:0 v:1,a:1",
+                            #"v:0,a:0 v:1,a:1",
+                            "v:0,a:0",
                             tempHLSChDirformattedforffmpeg + "\\" + str(channelId) + "_%v.m3u8",
                         ]
 
@@ -1966,7 +1978,7 @@ def channel(portalId, channelId):
                             )
                         )
 
-                    if web and ios:
+                    if (web and ios) or hls:
                         fileexists = False
 
                         def streamdatathread():

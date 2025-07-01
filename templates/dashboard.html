@@ -82,6 +82,7 @@
                         var channel = stream["channel name"]
                         var web = stream["web"]
                         var ios = stream["ios"]
+                        var hls = stream["hls"]
                         var streamid = stream["streamid"]
                         var pid = stream["pid"]
                         var start = stream["start time"] * 1000
@@ -145,6 +146,14 @@
                             '</td>' +
                             '<td>' +
                             '<p class="card-text text-nowrap">IOS=' + ios + '</p>' +
+                            '</td>' +
+                            '</tr>' +
+                            '<tr>' +
+                            '<td>' +
+                            '<i class="fa fa-recycle"></i>' +
+                            '</td>' +
+                            '<td>' +
+                            '<p class="card-text text-nowrap">HLS=' + hls + '</p>' +
                             '</td>' +
                             '</tr>' +
                             '<tr>' +

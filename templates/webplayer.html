@@ -132,9 +132,11 @@
         //dom ready
         $(function () {
         //document.addEventListener("DOMContentLoaded", function() {
+            const baseUrl = window.location.protocol + "//" + window.location.host + "/";
+            const playlistUrl = baseUrl + "playlist.m3u";
             const videoPlayer = document.getElementById("vjs-player");
             const playlist = document.getElementById("playlist");
-            const playlistItemsContainer = document.getElementById("playlistItemsContainer");
+            const playlistItemsContainer = $("playlistItemsContainer");
             const loadM3UButton = document.getElementById("loadM3U");
             const m3uURLInput = document.getElementById("m3uURL");
             const billedMsgElement = document.getElementById("billedMsg");
@@ -234,7 +236,7 @@
             //player.playlistUi();
 
             player.ready(function () {
-                videojs.log('Starting SpatialNavigation for SmartTV\'s');
+                //videojs.log('Starting SpatialNavigation for SmartTV\'s');
                 //player.spatialNavigation.start();
                 window.player = player;
 
@@ -243,22 +245,8 @@
 
             //player.crossOrigin('anonymous');
 
-            //  Get playlist url from url if any
-            var urlParams = new URLSearchParams(window.location.search);
-            var playlistParam = urlParams.get('playlist');
-            if (playlistParam != null) {
-                localStorage.setItem("m3uPlaylistURL", playlistParam);
-            }
-
-            // Load search input from local storage
-            const savedPlaylistURL = localStorage.getItem("m3uPlaylistURL");
-            if (savedPlaylistURL) {
-                m3uURLInput.value = savedPlaylistURL;
-                // Automatically load the saved playlist
-                setTimeout(function() {
-                    loadM3UButton.click();
-                }, 500);
-            }
+            $("#m3uURL").val(playlistUrl);
+            loadPlaylist($("#m3uURL").val());
 
             // Load recent played
             loadRecentPlayed();
@@ -266,39 +254,8 @@
             //$("#loadM3U").css('cursor','pointer');
             $("#loadM3U").off('click').on('click', function (e) {
             //loadM3UButton.addEventListener("click", () => {
-                event.preventDefault();
-                const m3uURL = m3uURLInput.value;
-                localStorage.setItem("m3uPlaylistURL", m3uURL);
-                // Load and parse the M3U file from the user-provided URL
-                fetch(m3uURL)
-                    .then(response => response.text())
-                    .then(data => {
-                        //debugger;
-                        //videoPlayer.innerHTML = ''; // Clear the video player
-                        clearPlaylist(); // clear channel list
-
-                        const parsedPlaylist = parseM3U(data);
-                        playlistItems = parsedPlaylist.items;
-
-                        // Render the playlist
-                        renderPlaylist(playlistItems);
-
-                        if (document.getElementsByClassName('channel').length > 0) {
-                            channelPlaceholder.classList.add("d-none");
-                        } else {
-                            channelPlaceholder.classList.remove("d-none");
-                        }
-
-                        if (parsedPlaylist.billedMsg) {
-                            billedMsgElement.textContent = parsedPlaylist.billedMsg;
-                            billedMsgElement.classList.remove("d-none");
-                        } else {
-                            billedMsgElement.classList.add("d-none");
-                        }
-                    })
-                    .catch(error => {
-                        console.error("Error loading the M3U file:", error);
-                    });
+                e.preventDefault();
+                loadPlaylist($("#m3uURL").val());
             });
 
             // Search input event listener
@@ -314,7 +271,7 @@
 
                 // Render the filtered playlist
                 clearPlaylist(false);
-                renderPlaylist(filteredItems);
+                renderPlaylist(filteredItems, $("#playlistItemsContainer"));
             });
 
             // Prevent double-binding
@@ -331,8 +288,45 @@
 
         });
 
+        loadPlaylist = function(url){
+            const m3uURL = url;
+            channelPlaceholder = $("#channel-placeholder");
+            billedMsgElement = $("#billedMsg");
+                    //localStorage.setItem("m3uPlaylistURL", m3uURL);
+                    // Load and parse the M3U file from the user-provided URL
+                    fetch(m3uURL)
+                        .then(response => response.text())
+                        .then(data => {
+                            //debugger;
+                            //videoPlayer.innerHTML = ''; // Clear the video player
+                            clearPlaylist(); // clear channel list
+
+                            const parsedPlaylist = parseM3U(data);
+                            playlistItems = parsedPlaylist.items;
+
+                            // Render the playlist
+                            renderPlaylist(playlistItems, $("#playlistItemsContainer"));
+
+                            if (playlistItems && playlistItems.length == 0) {
+                                channelPlaceholder.addClass("d-none");
+                            } else {
+                                channelPlaceholder.removeClass("d-none");
+                            }
+
+                            if (parsedPlaylist.billedMsg) {
+                                billedMsgElement.text(parsedPlaylist.billedMsg);
+                                billedMsgElement.addClass("d-none");
+                            } else {
+                                billedMsgElement.removeClass("d-none");
+                            }
+                        })
+                        .catch(error => {
+                            console.error("Error loading the M3U file:", error);
+                        });
+        };
+
         // Function to render the playlist
-        function renderPlaylist(items, target = playlistItemsContainer) {
+        function renderPlaylist(items, target) {
             items.forEach((item, index) => {
                 var uniqueid = GenerateUUID();
                 const playlistItem = document.createElement('div');
@@ -349,12 +343,12 @@
                 }
 
                 //append to dom then wireup click handler
-                target.appendChild(playlistItem);
+                target.append(playlistItem);
 
                 //$("#pli_" + uniqueid).css('cursor','pointer');
                 $("#pli_" + uniqueid).off('click').on('click', function (e) {
                 //playlistItem.addEventListener("click", async () => {
-                    event.preventDefault();
+                    e.preventDefault();
                     clearErrorMessage();
                     try {
 
@@ -405,10 +399,6 @@
             });
         }
 
-        function SetupVideoJSPlayer() {
-
-        }
-
         function StartVideoJSPlayer(url, isIOS, callback) {
             var contentType = 'video/mp4';
 
@@ -430,8 +420,9 @@
                     contentType = 'application/x-mpegURL';
                     url = url + "?web=true&ios=true"
                 }else if (!isIOS && contentType === "video/mp4"){
+                    //force hls with web player
                     contentType = 'application/x-mpegURL';
-                    url = url + "?web=true&ios=true"
+                    url = url + "?hls=true"
                 }
 
                 window.player.src({
@@ -648,8 +639,10 @@
                 playlistItems = [];
             }
 
-            const playlistItemsElem = playlistItemsContainer.querySelectorAll('.channel');
-            playlistItemsElem.forEach(item => item.remove());
+            const playlistItemsElem = $("#playlistItemsContainer").find(".channel");
+            $.map(playlistItemsElem, function(item) {
+              item.remove()
+            });
         }
 
         function trimLineBreak(text) {
@@ -739,12 +732,16 @@
 
         function loadRecentPlayed() {
             recentPlayed = getRecentPlayed();
-            recentPlayedList.innerHTML = "";
+            //recentPlayedList.innerHTML = "";
+            $("#recentPlayedList").empty();
+
+            recentPlayedSection = $("#recentPlayedSection");
+
             if (recentPlayed.length > 0) {
-                renderPlaylist(recentPlayed, recentPlayedList);
-                recentPlayedSection.classList.remove("d-none");
+                renderPlaylist(recentPlayed, $("#recentPlayedList"));
+                recentPlayedSection.removeClass("d-none");
             } else {
-                recentPlayedSection.classList.add("d-none");
+                recentPlayedSection.addClass("d-none");
             }
         }
 
