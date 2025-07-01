@@ -10,9 +10,13 @@ import threading
 from threading import Thread
 import multiprocessing
 from multiprocessing import Process, Queue
+import asyncio
 import logging
 import copy
 import base64
+import uuid
+import psutil
+from flask import Flask, make_response, send_file
 logger = logging.getLogger("MacReplay")
 logger.setLevel(logging.INFO)
 logFormat = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
@@ -99,6 +103,12 @@ else:
 
 # Ensure the subdirectory exists
 os.makedirs(os.path.dirname(configFile), exist_ok=True)
+
+# Ensure mp4 and hls dirs are avail
+mp4Path = "c://temp//macreplay//mp4"
+hlsPath = "c://temp//macreplay//hls"
+os.makedirs(mp4Path, exist_ok=True)
+os.makedirs(hlsPath, exist_ok=True)
 
 logger.info(f"Using config file: {configFile}")
 
@@ -227,6 +237,41 @@ def is_file_older_than (file, delta):
         return True
     return False
 
+def killpid(pid):
+    try:
+        '''Kills all process'''
+        parent = psutil.Process(int(pid))
+        for child in parent.children(recursive=True):
+            child.kill()
+        parent.kill()
+        logger.warning("pid({}) process killed".format(pid))
+    except Exception as ex:
+        logger.warning("Error killing pid({}): {}".format(pid, ex))
+
+def make_safe_filename(s):
+    def safe_char(c):
+        if c.isalnum() or c=='.':
+            return c
+        else:
+            return "_"
+
+    safe = ""
+    last_safe=False
+    s = s.replace(" ", "_")
+    s = s.replace("'", "")
+    s = s.replace("\"", "")
+    s = s.replace(",", "_")
+    for c in s:
+      if len(safe) > 200:
+        return safe + "_" + str(time.time_ns() // 1000000)
+
+      safe_c = safe_char(c)
+      curr_safe = c != safe_c
+      if not last_safe or not curr_safe:
+        safe += safe_c
+      last_safe=curr_safe
+    return safe
+
 def getPortals():
     return config["portals"]
 
@@ -252,10 +297,7 @@ def savePortalCache(portal, mac=None, profile=None, channels=None, genres=None):
 
     if profile:
         portalprofile = profile
-        portalprofiledatafilename = portalname.replace(" ", "_")
-        portalprofiledatafilename = portalprofiledatafilename.replace("'", "")
-        portalprofiledatafilename = portalprofiledatafilename.replace("\"", "")
-        portalprofiledatafilename = portalprofiledatafilename.replace(",", "_")
+        portalprofiledatafilename = make_safe_filename(portalname)
 
         if mac is None:
             portalprofilepatafilepath = os.path.join(portalcachepath, "{}_profile.json".format(portalprofiledatafilename))
@@ -269,10 +311,7 @@ def savePortalCache(portal, mac=None, profile=None, channels=None, genres=None):
 
     if channels:
         portalchannels = channels
-        portalchannelsdatafilename = portalname.replace(" ", "_")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+        portalchannelsdatafilename = make_safe_filename(portalname)
 
         if mac is None:
             portalchannelsdatafilepath = os.path.join(portalcachepath, "{}_channels.json".format(portalchannelsdatafilename))
@@ -286,10 +325,7 @@ def savePortalCache(portal, mac=None, profile=None, channels=None, genres=None):
 
     if genres:
         portalgenres = genres
-        portalgenresdatafilename = portalname.replace(" ", "_")
-        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+        portalgenresdatafilename = make_safe_filename(portalname)
 
         if mac is None:
             portalgenresdatafilepath = os.path.join(portalcachepath, "{}_genres.json".format(portalgenresdatafilename))
@@ -317,10 +353,7 @@ def saveCombinedPortalChannelsCache(portal, channels=None, genres=None):
 
     if channels:
         portalchannels = channels
-        portalchannelsdatafilename = portalname.replace(" ", "_")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+        portalchannelsdatafilename = make_safe_filename(portalname)
 
         portalchannelsdatafilepath = os.path.join(portalcachepath, "{}_combined_portalchannels.json".format(portalchannelsdatafilename))
 
@@ -329,10 +362,7 @@ def saveCombinedPortalChannelsCache(portal, channels=None, genres=None):
 
     if genres:
         portalgenres = genres
-        portalgenresdatafilename = portalname.replace(" ", "_")
-        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+        portalgenresdatafilename = make_safe_filename(portalname)
 
         portalgenresdatafilepath = os.path.join(portalcachepath, "{}_combined_portalgenres.json".format(portalgenresdatafilename))
 
@@ -355,10 +385,7 @@ def getCombinedPortalChannelsCache(portal):
         portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
         os.makedirs(portalcachepath, exist_ok=True)
 
-        portalchannelsdatafilename = portalname.replace(" ", "_")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+        portalchannelsdatafilename = make_safe_filename(portalname)
 
         filename = "{}_combined_portalchannels.json".format(portalchannelsdatafilename)
         portalchannelsdatafilepath = os.path.join(portalcachepath, filename)
@@ -401,10 +428,7 @@ def getPortalChannelsCache(portal, mac):
 
         mac = mac.replace(" ", "")
         mac = mac.replace(":", "")
-        portalchannelsdatafilename = portalname.replace(" ", "_")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("'", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace("\"", "")
-        portalchannelsdatafilename = portalchannelsdatafilename.replace(",", "_")
+        portalchannelsdatafilename = make_safe_filename(portalname)
 
         filename = "{}_{}_channels.json".format(portalchannelsdatafilename, mac)
         portalchannelsdatafilepath = os.path.join(portalcachepath, filename)
@@ -448,10 +472,7 @@ def getPortalGenresCache(portal, mac):
 
         mac = mac.replace(" ", "")
         mac = mac.replace(":", "")
-        portalgenresdatafilename = portalname.replace(" ", "_")
-        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+        portalgenresdatafilename = make_safe_filename(portalname)
 
         filename = "{}_{}_genres.json".format(portalgenresdatafilename, mac)
         portalgenresdatafilepath = os.path.join(portalcachepath, filename)
@@ -489,10 +510,7 @@ def getCombinedPortalGenresCache(portal):
         portalcachepath = os.path.join(basePath, "evilvir.us", "portalcache")
         os.makedirs(portalcachepath, exist_ok=True)
 
-        portalgenresdatafilename = portalname.replace(" ", "_")
-        portalgenresdatafilename = portalgenresdatafilename.replace("'", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace("\"", "")
-        portalgenresdatafilename = portalgenresdatafilename.replace(",", "_")
+        portalgenresdatafilename = make_safe_filename(portalname)
 
         filename = "{}_combined_portalgenres.json".format(portalgenresdatafilename)
         portalgenresdatafilepath = os.path.join(portalcachepath, filename)
@@ -601,7 +619,6 @@ def keepalive_watchdog():
                         return ""
         return ""
 
-
 @app.route("/", methods=["GET"])
 @authorise
 def home():
@@ -612,6 +629,14 @@ def home():
 @authorise
 def webplayer():
     return render_template("webplayer.html", portals=getPortals())
+
+@app.route("/killprocessid", methods=["GET"])
+@authorise
+def killprocessid():
+    pid = request.args.get("pid")
+    killpid(pid)
+    return render_template("dashboard.html")
+    #return redirect("/dashboard")
 
 
 @app.route("/portals", methods=["GET"])
@@ -1235,7 +1260,7 @@ def reloadplaylist():
 @authorise
 def playlist():
     global cached_playlist, last_playlist_host
-    
+
     logger.info("Playlist Requested")
     
     # Detect the current host dynamically
@@ -1248,6 +1273,19 @@ def playlist():
         generate_playlist()
 
     return Response(cached_playlist, mimetype="text/plain")
+
+
+@app.route("/hls/<string:streamid>/<string:filename>", methods=['GET'])
+def return_streamm3u8(streamid, filename):
+    try:
+        file_path = os.path.join(hlsPath, streamid, filename)
+        file_path = file_path.replace("//", "\\")
+        if os.path.isfile(file_path):
+            return send_file(file_path, mimetype='application/octet-stream')
+        else:
+            return make_response(f"File '{filename}' not found.", 404)
+    except Exception as e:
+        return make_response(f"Error: {str(e)}", 500)
 
 # Function to manually trigger playlist update
 @app.route("/update_playlistm3u", methods=["POST"])
@@ -1469,10 +1507,7 @@ def refresh_xmltv():
 
                         if epg is not None:
                             #write raw epg file to disk for debugging
-                            portalprofiledatafilename = name.replace(" ", "_")
-                            portalprofiledatafilename = portalprofiledatafilename.replace("'", "")
-                            portalprofiledatafilename = portalprofiledatafilename.replace("\"", "")
-                            portalprofiledatafilename = portalprofiledatafilename.replace(",", "_")
+                            portalprofiledatafilename = make_safe_filename(name)
                             raw_epg_file = os.path.join(portalcachepath, "{}_RawEPG.json".format(portalprofiledatafilename))
                             with open(raw_epg_file, "w", encoding="utf-8") as f:
                                 json.dump(epg, f, indent=4)
@@ -1613,6 +1648,20 @@ def xmltv():
 
 @app.route("/play/<portalId>/<channelId>", methods=["GET"])
 def channel(portalId, channelId):
+    web = request.args.get("web")
+    ios = request.args.get("ios")
+    streamid = str(uuid.uuid4())
+
+    if web is not None and web == "true":
+        web = True
+    else:
+        web = False
+
+    if ios is not None and ios == "true":
+        ios = True
+    else:
+        ios = False
+
     def streamData():
         def occupy():
             occupied.setdefault(portalId, [])
@@ -1625,23 +1674,38 @@ def channel(portalId, channelId):
                     "client": ip,
                     "portal name": portalName,
                     "start time": startTime,
+                    "web": web,
+                    "ios": ios,
+                    "streamid": streamid,
+                    "pid": 0
                 }
             )
-            logger.info("Occupied Portal({}):MAC({})".format(portalId, mac))
+            logger.info("Occupied Portal({}):MAC({}), StreamId({})".format(portalId, mac, str(streamid)))
 
         def unoccupy():
-            occupied.get(portalId, []).remove(
-                {
-                    "portalId": portalId,
-                    "mac": mac,
-                    "channel id": channelId,
-                    "channel name": channelName,
-                    "client": ip,
-                    "portal name": portalName,
-                    "start time": startTime,
-                }
-            )
-            logger.info("Unoccupied Portal({}):MAC({})".format(portalId, mac))
+            # occupied.get(portalId, []).remove(
+            #     {
+            #         "portalId": portalId,
+            #         "mac": mac,
+            #         "channel id": channelId,
+            #         "channel name": channelName,
+            #         "client": ip,
+            #         "portal name": portalName,
+            #         "start time": startTime,
+            #         "web": web,
+            #         "ios": ios
+            #     }
+            # )
+
+            occupiedsforportal = occupied.get(portalId, [])
+
+            if occupiedsforportal is not None:
+                for item in occupiedsforportal:
+                    if item['streamid'] == streamid:
+                        occupiedsforportal.remove(item)
+                        break
+
+            logger.info("Unoccupied Portal({}):MAC({}), StreamId({})".format(portalId, mac, str(streamid)))
 
         try:
             startTime = datetime.now(timezone.utc).timestamp()
@@ -1653,6 +1717,21 @@ def channel(portalId, channelId):
                 stderr=subprocess.DEVNULL,
             ) as ffmpeg_sp:
                 while True:
+                    occupiedsforportal = occupied.get(portalId, [])
+
+                    occupieditem = None
+                    if occupiedsforportal is not None:
+                        for item in occupiedsforportal:
+                            if item['streamid'] == streamid:
+                                item['pid'] = ffmpeg_sp.pid
+                                occupieditem = item
+                                break
+                        else:
+                            occupieditem = None
+
+                    #if occupieditem is not None:
+                        #logger.info("pid ({}) assigned for occupied streamid ({})".format(str(occupieditem["pid"]), str(occupieditem["streamid"])))
+
                     chunk = ffmpeg_sp.stdout.read(1024)
                     if len(chunk) == 0:
                         if ffmpeg_sp.poll() != 0:
@@ -1702,7 +1781,6 @@ def channel(portalId, channelId):
     macs = list(portal["macs"].keys())
     streamsPerMac = int(portal.get("streams per mac"))
     proxy = portal.get("proxy")
-    web = request.args.get("web")
     ip = request.remote_addr
     useragent = portal.get("useragent")
 
@@ -1751,21 +1829,127 @@ def channel(portalId, channelId):
 
             if getSettings().get("test streams", "true") == "false" or testStream():
                 if web:
-                    ffmpegcmd = [
-                        ffmpeg_path,
-                        "-loglevel",
-                        "panic",
-                        "-hide_banner",
-                        "-i",
-                        link,
-                        "-vcodec",
-                        "copy",
-                        "-f",
-                        "mp4",
-                        "-movflags",
-                        "frag_keyframe+empty_moov",
-                        "pipe:",
-                    ]
+                    if not ios:
+                        ffmpegcmd = [
+                            ffmpeg_path,
+                            "-loglevel",
+                            "panic",
+                            "-hide_banner",
+                            "-i",
+                            link,
+                            "-vcodec",
+                            "copy",
+                            "-f",
+                            "mp4",
+                            "-movflags",
+                            "frag_keyframe+empty_moov",
+                            "pipe:",
+                        ]
+                    else:
+                        #ios tweaks for web playing
+
+                        #hls dir
+                        tempHLSChDir = os.path.join(hlsPath, streamid)  # Subdirectory for logs
+                        logger.info("got here, path {}".format(tempHLSChDir))
+                        os.makedirs(tempHLSChDir, exist_ok=True)
+                        logger.info("supposedly directory was created")
+
+                        tempHLSChDirformattedforffmpeg = tempHLSChDir.replace("//", "\\")
+
+                        #sample ffmpeg -i file.mp4 -vf "fps=30,scale=w=-2:h='min(1920,ih)':sws_flags=spline+accurate_rnd:in_range=tv:out_range=tv" -c:v libx264 -profile:v baseline -level:v 4.2 -colorspace bt709 -color_trc bt709 -color_primaries bt709 -color_range tv -crf 17 -preset slow -tune film -x264-params mvrange=511 -pix_fmt yuv420p -ac 2 -c:a aac -b:a 160k -movflags +faststart file.sm.mp4
+                        # ffmpegcmd = [
+                        #     ffmpeg_path,
+                        #     "-loglevel",
+                        #     "panic",
+                        #     "-hide_banner",
+                        #     "-i",
+                        #     link,
+                        #     "-vcodec",
+                        #     "libx264",
+                        #     "-profile:v",
+                        #     "main",
+                        #     "-level",
+                        #     "3.1",
+                        #     "-preset",
+                        #     "medium",
+                        #     "-crf",
+                        #     "23",
+                        #     "-x264-params",
+                        #     "ref=4",
+                        #     "-acodec",
+                        #     "copy",
+                        #     "-movflags",
+                        #     "+faststart",
+                        #     "-y",  # overwrite output file if exists
+                        #     mp4Path + "//" + str(channelId) + ".mp4",
+                        # ]
+
+                        ffmpegcmd = [
+                            ffmpeg_path,
+                            "-loglevel",
+                            "panic",
+                            "-hide_banner",
+                            "-i",
+                            link,
+                            "-y",  # overwrite output file if exists
+                            "-vcodec",
+                            "libx264",
+                            "-profile:v",
+                            "main",
+                            "-level",
+                            "3.1",
+                            "-preset",
+                            "medium",
+                            "-crf",
+                            "23",
+                            "-x264-params",
+                            "ref=4",
+                            "-acodec",
+                            "copy",
+                            "-movflags",
+                            "+faststart",
+                            "-map",
+                            "v:0",
+                            "-c:v:0",
+                            "libx264",
+                            "-b:v:0",
+                            "2000k",
+                            "-map",
+                            "v:0",
+                            "-c:v:1",
+                            "libx264",
+                            "-b:v:1",
+                            "6000k",
+                            "-map",
+                            "a:0",
+                            "-map",
+                            "a:0",
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
+                            "-ac",
+                            "2",
+                            "-f",
+                            "hls",
+                            "-hls_time",
+                            "10",
+                            "-hls_playlist_type",
+                            "event",
+                            "-master_pl_name",
+                            "master.m3u8",
+                            "-var_stream_map",
+                            "v:0,a:0 v:1,a:1",
+                            tempHLSChDirformattedforffmpeg + "\\" + str(channelId) + "_%v.m3u8",
+                        ]
+
+                    # ffmpeg.exe -i "http://streamurl"
+                    # -vcodec libx264 -profile:v main -level 3.1 -preset medium -crf 23 -x264-params ref=4 -acodec copy -movflags +faststart
+                    # -map v:0 -c:v:0 libx264 -b:v:0 2000k -map v:0 -c:v:1 libx264 -b:v:1 6000k -map a:0 -map a:0 -c:a aac -b:a 128k -ac 2 -f hls #
+                    # -hls_time 4 -hls_playlist_type event -master_pl_name master.m3u
+                    # -var_stream_map "v:0,a:0 v:1,a:1" c:\\temp\macreplay\\hls\\test\\stream_%v.m3u8
+
+
                     if proxy:
                         ffmpegcmd.insert(1, "-http_proxy")
                         ffmpegcmd.insert(2, proxy)
@@ -1775,8 +1959,70 @@ def channel(portalId, channelId):
                                 ffmpegcmd
                             )
                         )
+                    else:
+                        logger.info(
+                            "FFMPEG cmd w/o proxy issued({})".format(
+                                ffmpegcmd
+                            )
+                        )
 
-                    return Response(streamData(), mimetype="application/octet-stream")
+                    if web and ios:
+                        fileexists = False
+
+                        def streamdatathread():
+                            logger.info("hls thread for streamid({}) starting".format(streamid))
+                            itr = streamData()
+
+                            while True:
+                                try:
+                                    value = next(itr)
+                                except StopIteration as e:
+                                    return_value = e.value
+                                    logger.info("hls thread for streamid({}) stopped".format(streamid))
+                                    break
+
+
+                        hlst = threading.Thread(name='streamData hls thread', target=streamdatathread)
+                        hlst.daemon = True
+                        hlst.start()
+
+                        file_path = os.path.join(hlsPath, streamid, "master.m3u8")
+                        file_path = file_path.replace("//", "\\")
+
+                        waitsec = 0
+                        while os.path.isfile(file_path) == False and waitsec < 60:
+                            waitsec += 1
+                            if waitsec % 5 == 0:
+                                logger.info("master.m3u8 not yet available for stream({})".format(streamid))
+                            time.sleep(1)
+
+                        if os.path.isfile(file_path):
+                            #give enough time for ffmpeg to at least record the first segment
+                            logger.info("master.m3u8 found! Waiting for segments to start recording for stream({})".format(streamid))
+                            time.sleep(14)
+                            logger.info("returning master.m3u8 to client for stream({})".format(streamid))
+                            return redirect("/hls/{}/master.m3u8".format(streamid))
+                        else:
+                            logger.info("master.m3u8 did not generate for stream({}), killing thread".format(streamid))
+                            occupieditem = None
+                            occupiedsforportal = occupied.get(portalId, [])
+                            hlst_pid = 0
+                            if occupiedsforportal is not None:
+                                for item in occupiedsforportal:
+                                    if item['streamid'] == streamid:
+                                        hlst_pid = item['pid']
+                                        occupieditem = item
+                                        break
+                                else:
+                                    occupieditem = None
+
+                            if occupieditem is not None and hlst_pid > 0:
+                                killpid(hlst_pid)
+
+                            return "File not found", 400
+
+                    else:
+                        return Response(streamData(), mimetype="application/octet-stream")
 
                 else:
                     if getSettings().get("stream method", "ffmpeg") == "ffmpeg":

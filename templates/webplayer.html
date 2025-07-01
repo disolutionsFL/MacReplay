@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-{# used https://github.com/afzafri/IPTV-Player-Web-App as starter for this, but needed lots of fixes to work #}
+{# used https://github.com/afzafri/IPTV-Player-Web-App as starter for this, but needed lots of fixes to work, also wasn't compatible with ios' #}
     <style>
         html, body {
             height: 100%;
@@ -72,6 +72,12 @@
             max-width: 100vh; /* Set a maximum height equal to the viewport height */
             overflow-x: auto; /* Add a vertical scrollbar when needed */
         }
+
+        .ios,
+        .ios * {
+            /* causes dom events events to be fired */
+            cursor: pointer;
+        }
     </style>
 
     <div class="container-fluid h-100">
@@ -82,15 +88,21 @@
                         <div class="input-group mb-3 mt-3">
                             <input type="text" id="m3uURL" class="form-control" placeholder="Enter M3U URL">
                             <div class="input-group-btn">
-                                <button id="loadM3U" class="btn btn-primary btn-go">Go</button>
+                                <button id="loadM3U" class="btn btn-primary btn-go" style="cursor: pointer;">Go</button>
                             </div>
                         </div>
                     </div>
 
-
-
                     <div class="col-12 order-1 order-md-2">
-                        <video id="videoPlayer" controls autoplay></video>
+                        <!-- used styling from advanced demo: https://videojs.com/advanced/?video=sintel -->
+                        <div playsinline="true" id="vjs-player-wrapper" class="video-js vjs-big-play-centered preview-player-dimensions vjs-touch-enabled vjs-workinghover vjs-v8 vjs-mux vjs-has-started vjs-fluid vjs-controls-enabled vjs-paused vjs-user-inactive" crossorigin="anonymous" preload="auto" tabindex="-1" role="region" lang="en" translate="no" aria-label="Video Player">
+                            <!-- <video id="preview-player_html5_api" preload="auto" crossorigin="anonymous" class="vjs-tech" playsinline="playsinline" tabindex="-1" role="application" poster="" src="blob:https://videojs.com/bb5db845-a94e-4652-8493-c2666a87d855"></video> -->
+                            <video id="vjs-player" class="video-js vjs-tech" autoplay controls preload="none" playsinline="playsinline"></video>
+                            <!-- <div class="vjs-playlist" data-for="vjs-player"></div> -->
+                            <div class="playlist-container  preview-player-dimensions vjs-fluid">
+                                <ol class="vjs-playlist"></ol>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="col-12 order-3 mt-3" id="recentPlayedSection">
@@ -110,34 +122,17 @@
     </div>
     <div id="billedMsg" class="billed-msg d-none"></div>
 
-{#    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
-        integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.0/shaka-player.compiled.js"></script>#}
     <script>
+
         // Define an array to store all playlist items
         let playlistItems = [];
         let player = null;
         let recentPlayed = [];
 
-        document.addEventListener("DOMContentLoaded", function() {
-            // Install built-in polyfills to patch browser incompatibilities.
-           shaka.polyfill.installAll();
-
-           // Check to see if the browser supports the basic APIs Shaka needs.
-           if (shaka.Player.isBrowserSupported()) {
-             // Everything looks good!
-               console.error('Shaka supported in your Browser!');
-             //initPlayer();
-           } else {
-             // This browser does not have the minimum set of APIs we need.
-             console.error('Browser not supported!');
-           }
-
-            const videoPlayer = document.getElementById("videoPlayer");
-            //const videoPlayer = $("#videoPlayer");
+        //dom ready
+        $(function () {
+        //document.addEventListener("DOMContentLoaded", function() {
+            const videoPlayer = document.getElementById("vjs-player");
             const playlist = document.getElementById("playlist");
             const playlistItemsContainer = document.getElementById("playlistItemsContainer");
             const loadM3UButton = document.getElementById("loadM3U");
@@ -146,10 +141,107 @@
             const searchInput = document.getElementById("searchInput");
             const channelPlaceholder = document.getElementById("channel-placeholder");
             const recentPlayedSection = document.getElementById("recentPlayedSection");
-            const recentPlayedList = document.getElementById("recentPlayedList");
+            const recentPlayedList = document.getElementById("recentPlayedList")
+            const streamid = getQuerystring("streamid")
+            const streamid_isHls = getQuerystring("hls")
 
-            //const video = document.getElementById('video');
-            const player = new shaka.Player();
+            const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+            if (IS_IOS) {
+                document.documentElement.classList.add('ios');
+            }
+
+            //https://videojs.com/guides/options/
+            //https://videojs.com/guides/spatial-navigation/
+
+            var options = {
+                muted: false,
+                autoplay: false,
+                liveui: true,
+                //fluid: true,
+                controlBar: {
+                    children: [
+                        'playToggle',
+                        'volumePanel',
+                        'currentTimeDisplay',
+                        'timeDivider',
+                        'durationDisplay',
+                        'progressControl',
+                        'liveDisplay',
+                        'seekToLive',
+                        'remainingTimeDisplay',
+                        'customControlSpacer',
+                        'playbackRateMenuButton',
+                        'chaptersButton',
+                        'descriptionsButton',
+                        'subsCapsButton',
+                        'audioTrackButton',
+                        'settingMenuButton',
+                        'qualitySelector',
+                        'fullscreenToggle'
+                    ]
+                },
+                //controls: true,
+                preload: 'auto',
+                //width: SCREEN_WIDTH,
+                //height: SCREEN_HEIGHT,
+                //sources: [{ src: source, type: 'application/x-mpegURL' }],
+                //playbackRates: [0.5, 1, 1.25, 1.5, 2],
+                html5: {
+                    hls: {
+                        enableLowInitialPlaylist: true,
+                        smoothQualityChange: true,
+                        //overrideNative: true,
+                    },
+                },
+                spatialNavigation: {
+                    enabled: true,
+                    horizontalSeek: true
+                }
+            }
+
+            // Initialize the playlist plugin
+            //const playlistPlugin = player.playlistPlugin();
+
+            // Retrieve the PlaylistPlugin class
+            // This is used to access static methods of the PlaylistPlugin
+            //const PlaylistPluginClass = videojs.getPlugin('playlistPlugin');
+            //const PlaylistUi = videojs.getPlugin('playlistUi');
+
+            const player = videojs('vjs-player', options, function onPlayerReady() {
+                options.headers = {
+                    //"Content-Type": "application/x-mpegURL",
+                    "Access-Control-Allow-Origin": "*"
+                }
+
+                videojs.log('Your player is ready!');
+                //console.log("'Your player is ready!'");
+
+                // In this context, `this` is the player that was created by Video.js.
+                //this.play();
+
+                // How about an event listener?
+                this.on('ended', function () {
+                    videojs.log('Player content has ended');
+                    if (player.isFullscreen()) {
+                        player.exitFullscreen();
+                    }
+                    player.hasStarted(false);
+                });
+            });
+
+            // Initialize the plugin and render the playlist
+            //player.playlistUi();
+
+            player.ready(function () {
+                videojs.log('Starting SpatialNavigation for SmartTV\'s');
+                //player.spatialNavigation.start();
+                window.player = player;
+
+                DetectAndPlayIncomingStream(streamid, streamid_isHls);
+            });
+
+            //player.crossOrigin('anonymous');
 
             //  Get playlist url from url if any
             var urlParams = new URLSearchParams(window.location.search);
@@ -171,14 +263,18 @@
             // Load recent played
             loadRecentPlayed();
 
-            loadM3UButton.addEventListener("click", () => {
+            //$("#loadM3U").css('cursor','pointer');
+            $("#loadM3U").off('click').on('click', function (e) {
+            //loadM3UButton.addEventListener("click", () => {
+                event.preventDefault();
                 const m3uURL = m3uURLInput.value;
                 localStorage.setItem("m3uPlaylistURL", m3uURL);
                 // Load and parse the M3U file from the user-provided URL
                 fetch(m3uURL)
                     .then(response => response.text())
                     .then(data => {
-                        videoPlayer.innerHTML = ''; // Clear the video player
+                        //debugger;
+                        //videoPlayer.innerHTML = ''; // Clear the video player
                         clearPlaylist(); // clear channel list
 
                         const parsedPlaylist = parseM3U(data);
@@ -206,8 +302,10 @@
             });
 
             // Search input event listener
-            searchInput.addEventListener("input", () => {
-                const searchText = searchInput.value.trim().toLowerCase();
+            $("#m3uURL").off('input').on('input', function (e) {
+            //searchInput.addEventListener("input", () => {
+                event.preventDefault();
+                const searchText = $("#m3uURL").value.trim().toLowerCase();
 
                 // Filter playlist items based on search input
                 const filteredItems = playlistItems.filter(item => {
@@ -218,13 +316,29 @@
                 clearPlaylist(false);
                 renderPlaylist(filteredItems);
             });
+
+            // Prevent double-binding
+            // (only a potential issue if script is loaded through AJAX)
+            $(document.body).off('keyup', $("#m3uURL"));
+
+            // Bind to keyup events on the $selector.
+            $(document.body).on('keyup', $("#m3uURL"), function(event) {
+              if(event.keyCode == 13) { // 13 = Enter Key
+                $("#loadM3U").trigger('click');
+              }
+            });
+
+
         });
 
         // Function to render the playlist
         function renderPlaylist(items, target = playlistItemsContainer) {
             items.forEach((item, index) => {
-                const playlistItem = document.createElement("div");
+                var uniqueid = GenerateUUID();
+                const playlistItem = document.createElement('div');
+                playlistItem.id = 'pli_' + uniqueid;
                 playlistItem.className = "channel d-flex flex-column shadow-lg p-3 rounded rounded-2";
+                playlistItem.style = "cursor: pointer;";
                 playlistItem.textContent = item.tvgName || `Stream ${index + 1}`;
 
                 if (item.tvgLogo) {
@@ -234,105 +348,184 @@
                     playlistItem.appendChild(logoImage);
                 }
 
-                playlistItem.addEventListener("click", async () => {
+                //append to dom then wireup click handler
+                target.appendChild(playlistItem);
+
+                //$("#pli_" + uniqueid).css('cursor','pointer');
+                $("#pli_" + uniqueid).off('click').on('click', function (e) {
+                //playlistItem.addEventListener("click", async () => {
+                    event.preventDefault();
                     clearErrorMessage();
                     try {
-                        if (player !== null) {
-                            await player.destroy();
-                        }
-
-                        //player = new shaka.Player(videoPlayer);
-                        player = new shaka.Player();
-                        await player.attach(videoPlayer);
-
-                        // Attach player to the window to make it easy to access in the JS console.
-                        window.player = player;
-
-                        // Add error event listener
-                        player.addEventListener('error', onPlayerError);
-
-                        // Configure network filters
-                        player.getNetworkingEngine().registerRequestFilter(function(type, request) {
-                            console.log('Outgoing request:', type, request);
-                        });
-
-                        player.getNetworkingEngine().registerResponseFilter(function(type, response) {
-                            console.log('Incoming response:', type, response);
-                        });
-
-                        if (item.key) {
-                            console.log('Key information:', item.key);
-                            if (item.key.license_type === 'clearkey' && item.key.license_key) {
-                                console.log('Configuring for URL-based license key');
-                                player.configure({
-                                    drm: {
-                                        servers: {
-                                            'org.w3.clearkey': item.key.license_key
-                                        }
-                                    }
-                                });
-                            } else if (item.key.key_id && item.key.key) {
-                                console.log('Configuring for direct key values');
-                                player.configure({
-                                    drm: {
-                                        clearKeys: {
-                                            [item.key.key_id]: item.key.key
-                                        }
-                                    }
-                                });
-                            } else if (item.key.raw_key) {
-                                console.log('Configuring for raw key');
-                                // You might need to adjust this based on how your raw key should be used
-                                player.configure({
-                                    drm: {
-                                        clearKeys: item.key.raw_key
-                                    }
-                                });
-                            }
-                        }
-
-                        await player.attach(videoPlayer);
-                        // Attach player to the window to make it easy to access in the JS console.
-                        window.player = player;
 
                         console.log('Loading source:', item.source);
-                        await player.load(item.source + "?web=true", null, 'video/mp4');
+                        //await player.load(item.source + "?web=true", null, 'video/mp4');
+
+                        var vjsCallback = function () {
+                        //console.log("sent " + channelName + " to Video.js player");
+
+                            window.player.ready(function () {
+                                var promise = window.player.play();
+
+                                if (promise !== undefined) {
+                                    promise.then(function () {
+                                        //debugger;
+                                        // Autoplay started!
+                                        videojs.log("Autoplay started!");
+                                        $("#vjs-player-wrapper").removeClass("centerVertically");
+                                        $("#vjs-player-wrapper").focus();
+                                        $("#vjs-player-wrapper").addClass("centerVertically");
+                                    }).catch(function (error) {
+                                        // Autoplay was prevented.
+                                        videojs.log("Autoplay was prevented!");
+                                    });
+                                }
+                            });
+
+                        };
+
+                        const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+                        //StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
+                        StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
                         console.log('Source loaded successfully');
 
-                        videoPlayer.scrollIntoView({ behavior: 'smooth' });
-                        videoPlayer.classList.remove("d-none");
+                        //videoPlayer.scrollIntoView({ behavior: 'smooth' });
+                        //videoPlayer.classList.remove("d-none");
 
                         saveRecentPlayed(item);
                     } catch (error) {
                         console.error('Error in renderPlaylist:', error);
-                        onPlayerError(error);
-                        videoPlayer.classList.add("d-none");
+                        //onPlayerError(error);
+                        //videoPlayer.classList.add("d-none");
                     }
                 });
 
-                target.appendChild(playlistItem);
+
             });
         }
 
-        function onPlayerError(error) {
-            console.error('Detailed error information:', error);
+        function SetupVideoJSPlayer() {
 
-            // You can add more specific error handling here
-            if (error.code === shaka.util.Error.Code.DASH_INVALID_XML) {
-                console.error('Invalid DASH manifest');
-            } else if (error.code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
-                console.error('Bad HTTP status');
+        }
+
+        function StartVideoJSPlayer(url, isIOS, callback) {
+            var contentType = 'video/mp4';
+
+            if (!$.isNullOrEmpty(url)) {
+
+                if (url.toLowerCase().endsWith('.m3u8')) {
+                    contentType = 'application/x-mpegURL';
+                } else if (url.toLowerCase().endsWith('.mp4')) {
+                    contentType = 'video/mp4';
+                } else if (url.toLowerCase().endsWith('.webm')) {
+                    contentType = 'video/webm';
+                } else if (url.toLowerCase().endsWith('.ogv')) {
+                    contentType = 'video/ogg';
+                } else {
+                    console.log('unknown extension, defaulting to mpeg ts content-type');
+                }
+
+                if(isIOS){
+                    contentType = 'application/x-mpegURL';
+                    url = url + "?web=true&ios=true"
+                }else if (!isIOS && contentType === "video/mp4"){
+                    contentType = 'application/x-mpegURL';
+                    url = url + "?web=true&ios=true"
+                }
+
+                window.player.src({
+                    src: url,
+                    type: contentType,
+                    //withCredentials: true,
+                    autoplay: true
+                    //handleManifestRedirects: true,
+                    //overrideNative: true
+                });
+
+                if (callback) {
+                    callback();
+                }
+            } else {
+                videojs.log('Url Empty or invalid');
             }
+        }
 
-            // Clear any existing error messages
-            clearErrorMessage();
+        function StartVideoJSPlayerJoinStream(streamid, hls, callback) {
+            var contentType = 'video/mp4';
 
-            // Display an error message to the user
-            const errorMessage = document.createElement('div');
-            errorMessage.classList.add('video-error-message');  // Add a class for easy identification
-            errorMessage.textContent = `Error loading video: ${error.message || error.code}`;
-            errorMessage.style.color = 'red';
-            videoPlayer.parentNode.insertBefore(errorMessage, videoPlayer.nextSibling);
+            var url = "";
+
+            if (!$.isNullOrEmpty(streamid)) {
+
+                if(hls){
+                    url = "/hls/" + streamid + "/master.m3u8";
+                }
+
+                if (url.toLowerCase().endsWith('.m3u8')) {
+                    contentType = 'application/x-mpegURL';
+                } else if (url.toLowerCase().endsWith('.mp4')) {
+                    contentType = 'video/mp4';
+                } else if (url.toLowerCase().endsWith('.webm')) {
+                    contentType = 'video/webm';
+                } else if (url.toLowerCase().endsWith('.ogv')) {
+                    contentType = 'video/ogg';
+                } else {
+                    console.log('unknown extension, defaulting to mpeg ts content-type');
+                }
+
+
+                window.player.src({
+                    src: url,
+                    type: contentType,
+                    //withCredentials: true,
+                    autoplay: true
+                    //handleManifestRedirects: true,
+                    //overrideNative: true
+                });
+
+                if (callback) {
+                    callback();
+                }
+            } else {
+                videojs.log('Url Empty or invalid');
+            }
+        }
+
+        function DetectAndPlayIncomingStream(streamid, hls){
+            //was a streamid passed, if so play it
+            if(!$.isNullOrEmpty(streamid)){
+
+                console.log('Loading stream:', streamid);
+                        //await player.load(item.source + "?web=true", null, 'video/mp4');
+
+                        var vjsStreamCallback = function () {
+
+                            window.player.ready(function () {
+                                var promise = window.player.play();
+
+                                if (promise !== undefined) {
+                                    promise.then(function () {
+                                        //debugger;
+                                        // Autoplay started!
+                                        videojs.log("Autoplay started!");
+                                        $("#vjs-player-wrapper").removeClass("centerVertically");
+                                        $("#vjs-player-wrapper").focus();
+                                        $("#vjs-player-wrapper").addClass("centerVertically");
+                                    }).catch(function (error) {
+                                        // Autoplay was prevented.
+                                        videojs.log("Autoplay was prevented!");
+                                    });
+                                }
+                            });
+
+                        };
+
+                        //StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
+                        StartVideoJSPlayerJoinStream(streamid, true, vjsStreamCallback);
+                        console.log('Source loaded successfully');
+
+            } //!$.isNullOrEmpty(streamid))
         }
 
         function clearErrorMessage() {
