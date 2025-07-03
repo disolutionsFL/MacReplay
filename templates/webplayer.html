@@ -18,6 +18,11 @@
             background-color: #bbbbbb;
 
         }
+        .activestream {
+            background-color: #bbbbbb;
+
+        }
+
         #videoPlayer {
             width: 100%;
             height: auto;
@@ -44,6 +49,10 @@
 
         /* Change cursor to pointer on hover */
         .channel:hover {
+            cursor: pointer;
+        }
+
+        .activestream:hover {
             cursor: pointer;
         }
 
@@ -99,9 +108,16 @@
                             <!-- <video id="preview-player_html5_api" preload="auto" crossorigin="anonymous" class="vjs-tech" playsinline="playsinline" tabindex="-1" role="application" poster="" src="blob:https://videojs.com/bb5db845-a94e-4652-8493-c2666a87d855"></video> -->
                             <video id="vjs-player" class="video-js vjs-tech" autoplay controls preload="none" playsinline="playsinline"></video>
                             <!-- <div class="vjs-playlist" data-for="vjs-player"></div> -->
-                            <div class="playlist-container  preview-player-dimensions vjs-fluid">
+                            <!-- <div class="playlist-container  preview-player-dimensions vjs-fluid">
                                 <ol class="vjs-playlist"></ol>
-                            </div>
+                            </div> -->
+                        </div>
+                    </div>
+
+                    <div class="col-12 order-3 mt-3" id="activeStreamsSection">
+                        <div>Continue Watching</div>
+                        <div id="activeStreamsList" class="d-flex">
+                            <div id="dummy" class="activestream"></div>
                         </div>
                     </div>
 
@@ -129,7 +145,7 @@
         let player = null;
         let recentPlayed = [];
 
-        //dom ready
+        //DOM ready
         $(function () {
         //document.addEventListener("DOMContentLoaded", function() {
             const baseUrl = window.location.protocol + "//" + window.location.host + "/";
@@ -249,7 +265,7 @@
             loadPlaylist($("#m3uURL").val());
 
             // Load recent played
-            loadRecentPlayed();
+            //loadRecentPlayed();
 
             //$("#loadM3U").css('cursor','pointer');
             $("#loadM3U").off('click').on('click', function (e) {
@@ -347,6 +363,7 @@
 
                 //$("#pli_" + uniqueid).css('cursor','pointer');
                 $("#pli_" + uniqueid).off('click').on('click', function (e) {
+
                 //playlistItem.addEventListener("click", async () => {
                     e.preventDefault();
                     clearErrorMessage();
@@ -382,7 +399,7 @@
 
                         //StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
                         StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
-                        console.log('Source loaded successfully');
+                        //console.log('Source loaded successfully');
 
                         //videoPlayer.scrollIntoView({ behavior: 'smooth' });
                         //videoPlayer.classList.remove("d-none");
@@ -514,7 +531,7 @@
 
                         //StartVideoJSPlayer(item.source, IS_IOS, vjsCallback);
                         StartVideoJSPlayerJoinStream(streamid, true, vjsStreamCallback);
-                        console.log('Source loaded successfully');
+                        //console.log('Source loaded successfully');
 
             } //!$.isNullOrEmpty(streamid))
         }
@@ -720,7 +737,7 @@
             localStorage.setItem("recentPlayed", JSON.stringify(recentPlayed));
 
             // Reload the recent played items (assuming this function updates the UI)
-            loadRecentPlayed();
+            //loadRecentPlayed();
         }
 
 
@@ -733,6 +750,7 @@
         function loadRecentPlayed() {
             recentPlayed = getRecentPlayed();
             //recentPlayedList.innerHTML = "";
+            $("#recentPlayedList").children().off();
             $("#recentPlayedList").empty();
 
             recentPlayedSection = $("#recentPlayedSection");
@@ -744,6 +762,234 @@
                 recentPlayedSection.addClass("d-none");
             }
         }
+
+        function renderActiveStreams(activestreams, callback){
+            if(!$.isNullOrEmpty(activestreams)){
+                var target = $("#activeStreamsList")
+
+                        for (var portal in activestreams) {
+                            for (const stream of activestreams[portal]) {
+                                var portal = stream["portal name"]
+                                var mac = stream["mac"].toUpperCase()
+                                var client = stream["client"]
+                                var channel = stream["channel name"]
+                                var logo = stream["channel logo"]
+                                var web = stream["web"]
+                                var ios = stream["ios"]
+                                var hls = stream["hls"]
+                                var streamid = stream["streamid"]
+                                var pid = stream["pid"]
+                                var start = stream["start time"] * 1000
+                                var now = Date.now()
+                                var timeDifference = now - start;
+                                var differenceDate = new Date(timeDifference);
+                                var diffHours = differenceDate.getUTCHours();
+                                var diffMinutes = differenceDate.getUTCMinutes();
+                                var diffSeconds = differenceDate.getUTCSeconds();
+                                var dur = String(diffHours).padStart(2, '0') + ':' + String(diffMinutes).padStart(2, '0') + ':' + String(diffSeconds).padStart(2, '0');
+
+                                // Storing HTML code block in a variable
+                                {#var codeBlock = codeBlock +
+                                    '<div class="col">' +
+                                    '<div class="card text-dark bg-light mb-3">' +
+                                    '<div class="card-header"><i class="me-2 fa fa-user"></i>' + client + '</div>' +
+                                    '<div class="card-body">' +
+                                    '<table class="table table-sm">' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-play"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">' + channel + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-server"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">' + portal + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-lock"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">' + mac + '</p>' +
+                                    '</td>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-clock-o"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">' + dur + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-chrome"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">Web=' + web + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-apple"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">IOS=' + ios + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-recycle"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">HLS=' + hls + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-bookmark"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap">' + streamid + '</p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '<tr>' +
+                                    '<td>' +
+                                    '<i class="fa fa-bookmark"></i>' +
+                                    '</td>' +
+                                    '<td>' +
+                                    '<p class="card-text text-nowrap"><a href=\"/killprocessid?pid=' + pid + '\" title=\"kill stream\"><i class="fa fa-times-circle fa-3x"></i></a>&nbsp;&nbsp;<a href=\"/webplayer?hls=true&streamid=' + streamid + '\" target=\"webplayer\" title=\"play stream\"><i class="fa fa-play-circle-o fa-3x"></i></a></p>' +
+                                    '</td>' +
+                                    '</tr>' +
+                                    '</table>' +
+                                    '</div>' +
+                                    '</div>' +
+                                    '</div>';#}
+
+                                var $asdiv = "<div id=\"asi_" + streamid + "\" class=\"activestream d-flex flex-column shadow-lg p-3 rounded rounded-2\"><span id=\"asi_ch_" + streamid + "\">" + channel + "</span>";
+
+                                if (logo){
+                                    $asdiv += "<img src=\"" + logo + "\" class=\"tv-logo\" />";
+                                }
+
+                                $asdiv += "</div>";
+
+                                //append to dom then wireup click handler in callback
+                                target.append($asdiv);
+
+                            }
+
+                        }
+            }
+
+            if (callback) {
+                callback();
+            }
+        }
+
+        function loadActiveStreams(activeStreams) {
+
+            var asCurrentList = $("#activeStreamsList").find(".activestream");
+            $.map(asCurrentList, function(item) {
+                $("#" + item.id).off();
+                $("#" + item.id).remove();
+            });
+
+            $("#activeStreamsList").empty();
+
+            var wireupClickEvents = function(){
+               var asNewlyRenderedList = $("#activeStreamsList").find(".activestream");
+                $.map(asNewlyRenderedList, function(item) {
+                    var asdiv = $("#" + item.id);
+                    var streamid = item.id.replace("asi_", "");
+                    asdiv.off('click').on('click', function (e) {
+
+                        if (typeof (e) != 'undefined') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+
+                        clearErrorMessage();
+                        try {
+
+                            console.log('Loading stream:', streamid);
+                            //await player.load(item.source + "?web=true", null, 'video/mp4');
+
+                            var vjsCallback = function () {
+                            //console.log("sent " + channelName + " to Video.js player");
+
+                                window.player.ready(function () {
+                                    var promise = window.player.play();
+
+                                    if (promise !== undefined) {
+                                        promise.then(function () {
+                                            //debugger;
+                                            // Autoplay started!
+                                            videojs.log("Autoplay started!");
+                                            $("#vjs-player-wrapper").removeClass("centerVertically");
+                                            $("#vjs-player-wrapper").focus();
+                                            $("#vjs-player-wrapper").addClass("centerVertically");
+                                        }).catch(function (error) {
+                                            // Autoplay was prevented.
+                                            videojs.log("Autoplay was prevented!");
+                                        });
+                                    }
+                                });
+
+                            };
+
+                            StartVideoJSPlayerJoinStream(streamid, true, vjsCallback);
+                            //console.log('Stream loaded successfully');
+
+                            //videoPlayer.scrollIntoView({ behavior: 'smooth' });
+                            //videoPlayer.classList.remove("d-none");
+
+                            //saveRecentPlayed(item);
+                        } catch (error) {
+                            console.error('Error in wireupClickEvents() of activestreams:', error);
+                            //onPlayerError(error);
+                            //videoPlayer.classList.add("d-none");
+                        }
+                    });
+
+
+
+
+                });
+            };
+
+
+            renderActiveStreams(activeStreams, wireupClickEvents);
+
+            activeStreamsSection = $("#activeStreamsSection");
+
+            if (!$.isNullOrEmpty(activeStreams)) {
+                activeStreamsSection.removeClass("d-none");
+            } else {
+                activeStreamsSection.addClass("d-none");
+            }
+        }
+
+        // Streaming
+        var streamingURL = "{{ url_for('streaming') }}";
+        setInterval(function updateStreaming() {
+
+            fetch(streamingURL)
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (json) {
+                    loadActiveStreams(json);
+                })
+            return updateStreaming;
+        }(), 3000);
+
+
 
 
     </script>
