@@ -2104,7 +2104,7 @@ def channel(portalId, channelId):
         for portal in portals:
             if portals[portal]["enabled"] == "true":
                 fallbackChannels = portals[portal]["fallback channels"]
-                if channelName in fallbackChannels.values():
+                if fallbackChannels and channelName in fallbackChannels.values():
                     url = portals[portal].get("url")
                     macs = list(portals[portal]["macs"].keys())
                     proxy = portals[portal].get("proxy")

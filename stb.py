@@ -1,13 +1,7 @@
 import os
 import requests
 from requests.adapters import HTTPAdapter, Retry
-import json
-import urllib
-#from urllib.parse import urlparse
-try:
-    import urlparse
-except ImportError:
-    import urllib.parse as urlparse
+from urllib.parse import urlparse
 import re, uuid
 from time import time
 from time import sleep
@@ -16,6 +10,7 @@ import math
 from urllib.request import urlopen
 import base64
 import logging
+import json
 
 logger = None
 
